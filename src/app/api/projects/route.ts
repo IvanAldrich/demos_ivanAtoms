@@ -4,6 +4,7 @@ import { serverDb } from '@/lib/server';
 import * as projects from '@/lib/repo/projects';
 import * as versions from '@/lib/repo/versions';
 import * as jobs from '@/lib/repo/jobs';
+import * as messages from '@/lib/repo/messages';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
     ownerToken: owner,
     templateKey: body.templateKey ?? null,
   });
+  messages.add(db, project.id, 'user', idea);
   const v = versions.create(db, { projectId: project.id, n: 1 });
   jobs.enqueue(db, { projectId: project.id, versionId: v.id, type: 'initial' });
 

@@ -101,17 +101,32 @@ async function main(): Promise<void> {
         }
         jobs.setStatus(db, job.id, 'done');
         emit('info', 'job done');
+        messages.add(
+          db,
+          project.id,
+          'assistant',
+          `已生成 v${version.n}《${result.brief?.name ?? project.name}》${result.brief?.category ? `(${result.brief.category})` : ''}。${result.brief?.summary ?? ''} 共 ${result.files?.length ?? 0} 个文件。点击右上角「发布」获取公开链接。`
+            .replace(/\s+/g, ' ')
+            .trim(),
+        );
       } else {
         versions.setFailed(db, version.id, result.error ?? 'unknown');
         projects.update(db, project.id, { status: 'failed' });
         jobs.setStatus(db, job.id, 'failed', { error: result.error });
         emit('error', 'job failed', result.error);
+        messages.add(
+          db,
+          project.id,
+          'assistant',
+          `本次生成未完成：${(result.error ?? '').slice(0, 200)}。可继续对话调整需求或点击重试。`,
+        );
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       versions.setFailed(db, version.id, msg);
       jobs.setStatus(db, job.id, 'failed', { error: msg });
       emit('error', 'job crashed', msg);
+      messages.add(db, project.id, 'assistant', `生成过程出错：${msg.slice(0, 200)}`);
     } finally {
       clearInterval(hb);
     }

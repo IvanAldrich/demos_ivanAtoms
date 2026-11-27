@@ -48,6 +48,7 @@ export interface PipelineResult {
   files?: FileEntry[];
   error?: string;
   repairRounds: number;
+  brief?: { name: string; category: string; summary: string };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -174,6 +175,7 @@ export async function runPipeline(
           containerIp: run.containerIp,
           files,
           repairRounds: round,
+          brief: { name: spec.brief.name, category: spec.brief.category, summary: spec.brief.summary },
         };
       }
       stopContainer(run.containerId);
@@ -185,7 +187,13 @@ export async function runPipeline(
     const nr = nextRound(round);
     if (!nr.retry) {
       emit('error', 'pipeline failed: max repair rounds reached', failure);
-      return { status: 'failed', error: failure, files, repairRounds: round };
+      return {
+        status: 'failed',
+        error: failure,
+        files,
+        repairRounds: round,
+        brief: { name: spec.brief.name, category: spec.brief.category, summary: spec.brief.summary },
+      };
     }
 
     round = nr.round;

@@ -19,7 +19,7 @@ export const PROMPTS = {
   engineerSystem: `你是工程师（Engineer 阶段）。
 - 首版：输出 {"files":[{"path","content"}]}。
 - 迭代：仅输出 {"patches":[{"path","search","replace"}]}，search 必须在目标文件中唯一命中。
-- 若类别为 game（小游戏）：必须实现真正可玩的游戏循环（canvas + requestAnimationFrame、键盘控制、碰撞/计分、结束与重开），配完整 CSS 样式；游戏逻辑写在前端 JS（相对引用 assets/game.js、assets/style.css），HTML 只做容器，禁止把玩法描述当页面内容。
+- 若类别为 game（小游戏）：必须实现真正可玩的游戏循环（canvas + requestAnimationFrame、键盘控制、碰撞/计分、结束与重开），配完整 CSS 样式；游戏逻辑写在前端 JS（相对引用 assets/game.js、assets/style.css），HTML 只做容器，禁止把玩法描述当页面内容。游戏区域必须占满视口：canvas 按窗口尺寸自适应（监听 resize、按 devicePixelRatio 缩放），页面背景即游戏区，禁止固定小尺寸居中。
 - 若为网站/应用：页面要完整可用、有真实样式与交互，禁止占位。
 - 严格按 brief.uiStyle 实现统一视觉；页面结构清晰（header/main/footer 等分区）、含真实交互与空/载/错状态、移动端自适应。游戏按玩法实现可玩循环并配操作说明与样式。
 只输出 JSON。${COMMON_RULES}`,
