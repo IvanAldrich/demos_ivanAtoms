@@ -17,6 +17,8 @@ const FilesRespSchema = z.object({
   files: z.array(z.object({ path: z.string(), content: z.string() })),
 });
 
+const STAGES = ['需求分析与架构', '生成代码', '代码自检', '构建容器', '启动与健康检查', '发布就绪'];
+
 export interface PipelineJob {
   projectId: string;
   version: number;
@@ -108,6 +110,14 @@ export async function runPipeline(
   emit: EmitFn = () => {},
 ): Promise<PipelineResult> {
   const port = deps.containerPort ?? 3001;
+  const emitStage = (k: number) =>
+    emit('info', `第 ${k}/${STAGES.length} 步：${STAGES[k - 1]}`, {
+      kind: 'stage',
+      k,
+      n: STAGES.length,
+      label: STAGES[k - 1],
+    });
+  emitStage(1);
 
   const spec = job.spec ?? (await runSpec(deps.llm, { idea: job.idea ?? '', template: job.template }));
   emit('info', `spec ready: ${spec.brief.category} / ${spec.brief.name}`);
@@ -115,6 +125,7 @@ export async function runPipeline(
   let files: FileEntry[] = job.existingFiles ?? [];
   let failure = '';
 
+  emitStage(2);
   try {
     const eng = await runEngineer(deps.llm, {
       spec,
@@ -140,11 +151,13 @@ export async function runPipeline(
     if (!failure) files = await fillMissingAssets(deps.llm, files, spec, emit);
 
     if (!failure) {
+      emitStage(3);
       const v = validateArtifacts({ files, spec, mode: job.mode });
       if (!v.ok) failure = `validation: ${JSON.stringify(v.violations)}`;
     }
 
     if (!failure) {
+      emitStage(4);
       emit('info', 'build: start');
       const built = buildVersion({
         dataRoot: deps.dataRoot,
@@ -158,6 +171,7 @@ export async function runPipeline(
     }
 
     if (!failure) {
+      emitStage(5);
       emit('info', 'run: start');
       const run = runVersion({
         dataRoot: deps.dataRoot,
@@ -168,6 +182,7 @@ export async function runPipeline(
       });
       const h = await waitHealth(`http://${run.containerIp}:${port}`);
       if (h.ok) {
+        emitStage(6);
         emit('info', 'ready');
         return {
           status: 'ready',

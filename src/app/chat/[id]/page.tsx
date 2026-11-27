@@ -21,11 +21,28 @@ interface Message {
   id: string;
   role: string;
   content: string;
+  meta?: {
+    kind?: 'done' | 'error';
+    version?: number;
+    name?: string;
+    category?: string;
+    summary?: string;
+    features?: string[];
+    files?: number;
+    error?: string;
+  } | null;
 }
 interface FileMeta {
   path: string;
   size: number;
 }
+interface Stage {
+  k: number;
+  n: number;
+  label: string;
+}
+
+const STAGES = ['需求分析与架构', '生成代码', '代码自检', '构建容器', '启动与健康检查', '发布就绪'];
 
 const navLink: React.CSSProperties = { color: '#9ab', fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 };
 const tabBtn = (active: boolean): React.CSSProperties => ({
@@ -42,8 +59,8 @@ function friendly(msg: string): string {
   if (!msg) return '正在处理…';
   if (msg.includes('spec ready')) return '已完成需求分析与架构设计';
   if (msg.includes('completeness')) return '正在补齐缺失文件';
-  if (msg.includes('build: start')) return '正在生成并构建代码';
-  if (msg.includes('build: done')) return '构建完成，正在启动服务';
+  if (msg.includes('build: start')) return '正在构建';
+  if (msg.includes('build: done')) return '构建完成';
   if (msg.includes('run: start')) return '正在启动预览';
   if (msg.includes('repair')) return '遇到问题，正在自动修复';
   if (msg.includes('attempt failed')) return '遇到问题，正在重试';
@@ -54,22 +71,7 @@ function friendly(msg: string): string {
 function Avatar({ role }: { role: 'user' | 'assistant' }) {
   const isUser = role === 'user';
   return (
-    <div
-      style={{
-        width: 26,
-        height: 26,
-        borderRadius: '50%',
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 11,
-        fontWeight: 700,
-        background: isUser ? '#4267ff' : '#2a2f45',
-        color: '#fff',
-        marginTop: 2,
-      }}
-    >
+    <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, background: isUser ? '#4267ff' : '#2a2f45', color: '#fff', marginTop: 2 }}>
       {isUser ? 'U' : 'AI'}
     </div>
   );
@@ -80,26 +82,91 @@ function Bubble({ m }: { m: Message }) {
   return (
     <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start' }}>
       <Avatar role={isUser ? 'user' : 'assistant'} />
-      <div
-        style={{
-          maxWidth: '80%',
-          padding: '9px 12px',
-          borderRadius: 12,
-          fontSize: 13.5,
-          lineHeight: 1.6,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          background: isUser ? '#1b2350' : '#161618',
-          border: isUser ? '1px solid #26306a' : '1px solid #26262a',
-          color: isUser ? '#e7ecff' : '#d7dade',
-          borderTopRightRadius: isUser ? 4 : 12,
-          borderTopLeftRadius: isUser ? 12 : 4,
-        }}
-      >
-        {!isUser && (
-          <div style={{ fontSize: 11, color: '#7d9aff', marginBottom: 3, fontWeight: 600 }}>Alex · 工程师</div>
-        )}
+      <div style={{ maxWidth: '82%', padding: '9px 12px', borderRadius: 12, fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: isUser ? '#1b2350' : '#161618', border: isUser ? '1px solid #26306a' : '1px solid #26262a', color: isUser ? '#e7ecff' : '#d7dade', borderTopRightRadius: isUser ? 4 : 12, borderTopLeftRadius: isUser ? 12 : 4 }}>
+        {!isUser && <div style={{ fontSize: 11, color: '#7d9aff', marginBottom: 3, fontWeight: 600 }}>Alex · 工程师</div>}
         {m.content}
+      </div>
+    </div>
+  );
+}
+
+function CompletionCard({
+  m,
+  onPreview,
+  onOpen,
+  onChip,
+}: {
+  m: Message;
+  onPreview: () => void;
+  onOpen: () => void;
+  onChip: (text: string) => void;
+}) {
+  const meta: any = m.meta ?? {};
+  const features = meta.features ?? [];
+  const chips =
+    features.length > 0
+      ? features.slice(0, 3).map((f: string) => `优化：${f}`)
+      : meta.category === 'game'
+        ? ['加 Boss / 关卡', '加音效与动画', '性能与手感优化']
+        : ['加筛选 / 搜索', '加数据导出', '移动端适配'];
+  return (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'flex-start' }}>
+      <Avatar role="assistant" />
+      <div style={{ maxWidth: '86%', borderRadius: 12, borderTopLeftRadius: 4, background: '#12241a', border: '1px solid #27623c', padding: '12px 14px', fontSize: 13.5, color: '#dff3e6' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 11, color: '#5ad17a', fontWeight: 700 }}>Alex · 工程师</span>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#9fe3b4' }}>版本 v{meta.version ?? '?'}</span>
+        </div>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>✅ {meta.name ?? '已完成'}</div>
+        {meta.summary && <div style={{ color: '#bfe9cd', marginBottom: 8 }}>{meta.summary}</div>}
+        {features.length > 0 && (
+          <ul style={{ margin: '0 0 10px', paddingLeft: 18, color: '#cdebd7' }}>
+            {features.slice(0, 6).map((f: string, i: number) => (
+              <li key={i} style={{ marginBottom: 2 }}>{f}</li>
+            ))}
+          </ul>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <button onClick={onPreview} style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: '#2e6b3f', color: '#eafff1', cursor: 'pointer', fontSize: 12 }}>预览</button>
+          <button onClick={onOpen} style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid #2e6b3f', background: 'transparent', color: '#bfe9cd', cursor: 'pointer', fontSize: 12 }}>新窗口打开</button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {chips.map((c: string) => (
+            <button key={c} onClick={() => onChip(c)} style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid #2e6b3f', background: '#0f1a13', color: '#bfe9cd', cursor: 'pointer', fontSize: 12 }}>
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageProgress({ stage, activeStatus, queueHint }: { stage: Stage | null; activeStatus?: string; queueHint?: string }) {
+  const k = stage?.k ?? 0;
+  return (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'flex-start' }}>
+      <Avatar role="assistant" />
+      <div style={{ borderRadius: 12, borderTopLeftRadius: 4, background: '#161618', border: '1px solid #26262a', padding: '10px 12px', color: '#cfd6e0', fontSize: 13 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 11, color: '#7d9aff', fontWeight: 600 }}>Alex · 工程师</span>
+          <span style={{ fontSize: 11, color: '#889' }}>
+            {activeStatus === 'queued' ? '排队中…' : stage ? `第 ${stage.k}/${stage.n} 步` : queueHint || '处理中…'}
+          </span>
+          <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#7d9aff', marginLeft: 4 }} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
+          {STAGES.map((label, i) => {
+            const idx = i + 1;
+            const done = k > idx;
+            const current = k === idx;
+            return (
+              <div key={label} style={{ color: done ? '#5ad17a' : current ? '#dfe6ff' : '#5b6270', fontSize: 12 }}>
+                {done ? '✓' : current ? '●' : '○'} {label}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -111,6 +178,7 @@ export default function ChatPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [stage, setStage] = useState<Stage | null>(null);
   const [statusLine, setStatusLine] = useState('');
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -139,6 +207,16 @@ export default function ChatPage() {
     const onBuild = (ev: MessageEvent) => {
       try {
         const e = JSON.parse(ev.data);
+        if (e.data) {
+          try {
+            const payload = JSON.parse(e.data);
+            if (payload && payload.kind === 'stage') {
+              setStage({ k: payload.k, n: payload.n, label: payload.label });
+            }
+          } catch {
+            /* not structured */
+          }
+        }
         setStatusLine(friendly(String(e.message)));
         refresh();
       } catch {
@@ -157,7 +235,6 @@ export default function ChatPage() {
   const activeJobBusy = Boolean(activeJob && ['queued', 'leased', 'running'].includes(activeJob.status));
   const building = project?.status === 'building' || busy || activeJobBusy;
 
-  // completion / failure toast
   useEffect(() => {
     const s = project?.status ?? '';
     if (prevStatus.current === 'building' && s === 'ready') {
@@ -170,7 +247,6 @@ export default function ChatPage() {
     prevStatus.current = s;
   }, [project?.status]);
 
-  // legacy projects (created before messages existed): synthesize a minimal transcript
   const baseMessages: Message[] = messages.length
     ? messages
     : project
@@ -233,6 +309,11 @@ export default function ChatPage() {
     }
   }
 
+  async function retry() {
+    await fetch(`/api/projects/${id}/retry`, { method: 'POST' });
+    await refresh();
+  }
+
   async function publish(p: boolean) {
     await fetch(`/api/projects/${id}/publish`, {
       method: 'POST',
@@ -252,19 +333,11 @@ export default function ChatPage() {
           {project?.name ?? '加载中…'}
         </span>
         <span style={{ fontSize: 12, color: building ? '#e0b44a' : project?.status === 'ready' ? '#5ad17a' : '#777' }}>
-          {building ? '构建中…' : project?.status ?? ''}
+          {building ? (activeJob?.status === 'queued' ? '排队中' : '构建中…') : project?.status ?? ''}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           {project?.status === 'failed' && (
-            <button
-              onClick={async () => {
-                await fetch(`/api/projects/${id}/retry`, { method: 'POST' });
-                await refresh();
-              }}
-              style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #5a3a3a', background: '#2a1618', color: '#f2b8b5', cursor: 'pointer', fontSize: 13 }}
-            >
-              重试
-            </button>
+            <button onClick={retry} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #5a3a3a', background: '#2a1618', color: '#f2b8b5', cursor: 'pointer', fontSize: 13 }}>重试</button>
           )}
           <button onClick={() => publish(!published)} disabled={!latestReady} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: published ? '#3a2a12' : '#1e3a1e', color: '#fff', cursor: latestReady ? 'pointer' : 'not-allowed', fontSize: 13 }}>
             {published ? '取消发布' : '发布'}
@@ -281,24 +354,29 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '400px 1fr', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '420px 1fr', minHeight: 0 }}>
         <section style={{ borderRight: '1px solid #222', padding: 16, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
             {baseMessages.length === 0 && !building && (
               <p style={{ color: '#777', fontSize: 13 }}>描述你的想法或修改，AI 会生成并迭代你的应用。</p>
             )}
-            {baseMessages.map((m) => (
-              <Bubble key={m.id} m={m} />
-            ))}
-            {building && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'flex-start' }}>
-                <Avatar role="assistant" />
-                <div style={{ maxWidth: '80%', padding: '9px 12px', borderRadius: 12, borderTopLeftRadius: 4, background: '#161618', border: '1px solid #26262a', color: '#cfd6e0', fontSize: 13.5 }}>
-                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#7d9aff', marginRight: 8, animation: 'pulse 1s infinite' }} />
-                  {activeJob?.status === 'queued' ? '排队中，即将开始…' : statusLine || '正在处理…'}
-                </div>
-              </div>
+            {baseMessages.map((m) =>
+              m.role === 'assistant' && m.meta?.kind === 'done' ? (
+                <CompletionCard
+                  key={m.id}
+                  m={m}
+                  onPreview={() => setTab('preview')}
+                  onOpen={() => {
+                    const u = published && project ? `/p/${project.slug}` : latestReady ? `/preview/${id}/${latestReady.id}` : '';
+                    if (u) window.open(u, '_blank');
+                  }}
+                  onChip={(text) => setInput(text)}
+                />
+              ) : (
+                <Bubble key={m.id} m={m} />
+              ),
             )}
+            {building && <StageProgress stage={stage} activeStatus={activeJob?.status} queueHint={statusLine} />}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="继续对话修改…" style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #333', background: '#1a1a1c', color: '#eee' }} />

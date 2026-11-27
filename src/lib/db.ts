@@ -70,5 +70,9 @@ export function openDb(dbPath: string): DB {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+  const msgCols = db.prepare('PRAGMA table_info(message)').all() as Array<{ name: string }>;
+  if (!msgCols.some((c) => c.name === 'meta')) {
+    db.exec('ALTER TABLE message ADD COLUMN meta TEXT');
+  }
   return db;
 }

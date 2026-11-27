@@ -16,6 +16,7 @@ export interface Message {
   projectId: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  meta?: unknown;
   createdAt: number;
 }
 
