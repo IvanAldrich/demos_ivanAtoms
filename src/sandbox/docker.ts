@@ -53,6 +53,20 @@ export function projectDataDir(dataRoot: string, projectId: string): string {
   return path.join(projectRoot(dataRoot, projectId), 'data');
 }
 
+/** Data dir must be writable by the sandbox container user (uid 1000), not just the host user. */
+function ensureDataWritable(dir: string): void {
+  try {
+    fs.chownSync(dir, 1000, 1000);
+  } catch {
+    /* not root; ok if host user is 1000 */
+  }
+  try {
+    fs.chmodSync(dir, 0o777);
+  } catch {
+    /* ignore */
+  }
+}
+
 function ensureNetwork(name: string): void {
   try {
     docker(['network', 'inspect', name]);
@@ -90,6 +104,7 @@ export function buildVersion(params: {
     fs.writeFileSync(target, f.content);
   }
   fs.mkdirSync(projectDataDir(params.dataRoot, params.projectId), { recursive: true });
+  ensureDataWritable(projectDataDir(params.dataRoot, params.projectId));
 
   if (params.needsInstall) {
     try {
@@ -144,6 +159,7 @@ export function runVersion(params: {
   const codeDir = versionDir(params.dataRoot, params.projectId, params.version);
   const dataDir = projectDataDir(params.dataRoot, params.projectId);
   fs.mkdirSync(dataDir, { recursive: true });
+  ensureDataWritable(dataDir);
   const port = String(params.containerPort ?? 3001);
 
   const containerId = docker([
