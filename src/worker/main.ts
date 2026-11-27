@@ -41,7 +41,7 @@ async function main(): Promise<void> {
         /* ignore */
       }
     }
-    const job = selectNextJob(db);
+    const job = selectNextJob(db, 120_000);
     if (!job) {
       await sleep(1000);
       continue;
@@ -60,7 +60,7 @@ async function main(): Promise<void> {
 
     emit('info', `job ${job.type} v${version.n} started`);
     projects.update(db, project.id, { status: 'building' });
-    const hb = setInterval(() => jobs.heartbeat(db, job.id), 10_000);
+    const hb = setInterval(() => jobs.heartbeat(db, job.id, 120_000), 10_000);
 
     try {
       let result;
@@ -116,7 +116,7 @@ async function main(): Promise<void> {
           db,
           project.id,
           'assistant',
-          `✅ 已完成：v${version.n}《${result.brief?.name ?? project.name}》${result.brief?.category ? `(${result.brief.category})` : ''}。${result.brief?.summary ?? ''} 共 ${result.files?.length ?? 0} 个文件。可在右侧「预览」查看，或点「发布」获取公开链接。`
+          `✅ 已完成：v${version.n}《${result.brief?.name ?? project.name}》${result.brief?.category ? `(${result.brief.category})` : ''}。${result.brief?.summary ?? ''}${result.brief?.features && result.brief.features.length ? ` 功能：${result.brief.features.slice(0, 6).join('；')}。` : ''} 共 ${result.files?.length ?? 0} 个文件。可在右侧「预览」查看，或点「发布」获取公开链接。`
             .replace(/\s+/g, ' ')
             .trim(),
         );

@@ -48,7 +48,7 @@ export interface PipelineResult {
   files?: FileEntry[];
   error?: string;
   repairRounds: number;
-  brief?: { name: string; category: string; summary: string };
+  brief?: { name: string; category: string; summary: string; features?: string[] };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -175,7 +175,7 @@ export async function runPipeline(
           containerIp: run.containerIp,
           files,
           repairRounds: round,
-          brief: { name: spec.brief.name, category: spec.brief.category, summary: spec.brief.summary },
+          brief: { name: spec.brief.name, category: spec.brief.category, summary: spec.brief.summary, features: spec.brief.userStories },
         };
       }
       stopContainer(run.containerId);
@@ -192,7 +192,7 @@ export async function runPipeline(
         error: failure,
         files,
         repairRounds: round,
-        brief: { name: spec.brief.name, category: spec.brief.category, summary: spec.brief.summary },
+        brief: { name: spec.brief.name, category: spec.brief.category, summary: spec.brief.summary, features: spec.brief.userStories },
       };
     }
 

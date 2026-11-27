@@ -96,6 +96,9 @@ function Bubble({ m }: { m: Message }) {
           borderTopLeftRadius: isUser ? 12 : 4,
         }}
       >
+        {!isUser && (
+          <div style={{ fontSize: 11, color: '#7d9aff', marginBottom: 3, fontWeight: 600 }}>Alex · 工程师</div>
+        )}
         {m.content}
       </div>
     </div>
@@ -116,6 +119,7 @@ export default function ChatPage() {
   const [sel, setSel] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  const [activeJob, setActiveJob] = useState<{ status: string; type: string } | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const prevStatus = useRef<string>('');
 
@@ -125,6 +129,7 @@ export default function ChatPage() {
     setProject(d.project ?? null);
     setVersions(d.versions ?? []);
     setMessages(d.messages ?? []);
+    setActiveJob(d.activeJob ?? null);
   }, [id]);
 
   useEffect(() => {
@@ -149,7 +154,8 @@ export default function ChatPage() {
 
   const latestReady = [...versions].filter((v) => v.status === 'ready').sort((a, b) => b.n - a.n)[0];
   const published = Boolean(project?.publishedVersionId);
-  const building = project?.status === 'building' || busy;
+  const activeJobBusy = Boolean(activeJob && ['queued', 'leased', 'running'].includes(activeJob.status));
+  const building = project?.status === 'building' || busy || activeJobBusy;
 
   // completion / failure toast
   useEffect(() => {
@@ -249,6 +255,17 @@ export default function ChatPage() {
           {building ? '构建中…' : project?.status ?? ''}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {project?.status === 'failed' && (
+            <button
+              onClick={async () => {
+                await fetch(`/api/projects/${id}/retry`, { method: 'POST' });
+                await refresh();
+              }}
+              style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #5a3a3a', background: '#2a1618', color: '#f2b8b5', cursor: 'pointer', fontSize: 13 }}
+            >
+              重试
+            </button>
+          )}
           <button onClick={() => publish(!published)} disabled={!latestReady} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: published ? '#3a2a12' : '#1e3a1e', color: '#fff', cursor: latestReady ? 'pointer' : 'not-allowed', fontSize: 13 }}>
             {published ? '取消发布' : '发布'}
           </button>
@@ -278,7 +295,7 @@ export default function ChatPage() {
                 <Avatar role="assistant" />
                 <div style={{ maxWidth: '80%', padding: '9px 12px', borderRadius: 12, borderTopLeftRadius: 4, background: '#161618', border: '1px solid #26262a', color: '#cfd6e0', fontSize: 13.5 }}>
                   <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#7d9aff', marginRight: 8, animation: 'pulse 1s infinite' }} />
-                  {statusLine || '正在生成…'}
+                  {activeJob?.status === 'queued' ? '排队中，即将开始…' : statusLine || '正在处理…'}
                 </div>
               </div>
             )}

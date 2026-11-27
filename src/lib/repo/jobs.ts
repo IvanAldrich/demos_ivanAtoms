@@ -36,6 +36,15 @@ export function get(db: DB, id: string): BuildJob | undefined {
   return r ? map(r) : undefined;
 }
 
+export function latestForProject(db: DB, projectId: string): BuildJob | undefined {
+  const r = db
+    .prepare(
+      `SELECT * FROM build_job WHERE project_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    )
+    .get(projectId) as any;
+  return r ? map(r) : undefined;
+}
+
 export function claimNext(db: DB, leaseMs = 30_000): BuildJob | null {
   const row = db
     .prepare(

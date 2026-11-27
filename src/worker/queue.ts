@@ -2,12 +2,12 @@ import type { DB } from '../lib/db';
 import type { BuildJob } from '../lib/repo/types';
 import * as jobs from '../lib/repo/jobs';
 
-/** Move leased jobs whose lease expired back to queued. */
+/** Move leased/running jobs whose lease expired back to queued (self-heal orphans). */
 export function requeueExpired(db: DB, now = Date.now()): number {
   return db
     .prepare(
       `UPDATE build_job SET status='queued', lease_until=NULL, updated_at=?
-       WHERE status='leased' AND lease_until IS NOT NULL AND lease_until < ?`,
+       WHERE status IN ('leased','running') AND lease_until IS NOT NULL AND lease_until < ?`,
     )
     .run(now, now).changes;
 }

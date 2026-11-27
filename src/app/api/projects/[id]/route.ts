@@ -15,10 +15,20 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const db = serverDb();
   const project = projects.get(db, id);
   if (!project) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  const latest = jobs.latestForProject(db, id);
+  const activeJob =
+    latest && ['queued', 'leased', 'running'].includes(latest.status)
+      ? { id: latest.id, status: latest.status, type: latest.type }
+      : null;
+
   return NextResponse.json({
     project,
     versions: versions.listByProject(db, id),
     messages: messages.list(db, id),
+    activeJob,
+    latestJob: latest
+      ? { id: latest.id, status: latest.status, type: latest.type, error: latest.error }
+      : null,
   });
 }
 

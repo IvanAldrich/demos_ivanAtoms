@@ -61,4 +61,17 @@ describe('requeueExpired', () => {
     const again = selectNextJob(db);
     expect(again?.id).toBe(claimed?.id);
   });
+
+  it('requeues a stale running job but not a fresh one', () => {
+    const { p, v1 } = seedProject();
+    const j = jobs.enqueue(db, { projectId: p.id, versionId: v1.id, type: 'initial' });
+    selectNextJob(db, -1); // expired lease
+    jobs.setStatus(db, j.id, 'running');
+    expect(requeueExpired(db)).toBe(1);
+    expect(jobs.get(db, j.id)?.status).toBe('queued');
+
+    const claimed = selectNextJob(db, 60_000); // fresh lease
+    jobs.setStatus(db, claimed!.id, 'running');
+    expect(requeueExpired(db)).toBe(0);
+  });
 });
