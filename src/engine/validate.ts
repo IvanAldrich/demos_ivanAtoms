@@ -108,6 +108,28 @@ export function validateArtifacts(input: {
     );
   }
 
+  // If an index.html exists, the server must expose it at "/" (GET / returns 200).
+  const entryFile = files.find((f) => f.path === entry);
+  if (files.some((f) => f.path === 'index.html') && entryFile) {
+    const c = entryFile.content;
+    const servesRoot =
+      /app\.get\(\s*["']\/["']/.test(c) ||
+      /express\.static\(\s*["']\.["']/.test(c) ||
+      /express\.static\(\s*__dirname/.test(c) ||
+      /sendFile\(/.test(c) ||
+      /createServer\(/.test(c);
+    if (!servesRoot) {
+      violations.push(
+        violation(
+          'E_ROOT_ROUTE',
+          'index.html exists but server does not serve "/"',
+          entry,
+          'use express.static(".") or app.get("/", sendFile(index.html))',
+        ),
+      );
+    }
+  }
+
   const total = files.reduce((s, f) => s + Buffer.byteLength(f.content, 'utf8'), 0);
   if (files.length > MAX_FILES) {
     violations.push(violation('E_FILE_BUDGET', `too many files: ${files.length} > ${MAX_FILES}`));

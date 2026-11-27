@@ -25,11 +25,10 @@ export async function checkHealth(
 
   try {
     const res = await fetchWithTimeout(`${root}/`, timeoutMs);
-    if (res.status !== 200) return { ok: false, reason: `http_status_${res.status}` };
-
-    if (isStatic) {
+    if (res.status !== 200) {
+      // Many static apps serve index at /index.html but not "/"; accept that.
       const idx = await fetchWithTimeout(`${root}/index.html`, timeoutMs);
-      if (idx.status !== 200) return { ok: false, reason: 'index_missing' };
+      if (idx.status !== 200) return { ok: false, reason: `http_status_${res.status}` };
     }
     return { ok: true };
   } catch (e: unknown) {
