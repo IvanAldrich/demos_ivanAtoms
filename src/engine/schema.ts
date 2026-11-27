@@ -19,6 +19,7 @@ export const BriefSchema = z.object({
   name: z.string(),
   category: z.enum(['website', 'app', 'game']),
   summary: z.string(),
+  uiStyle: z.string().optional(),
   pages: z.array(PageSchema),
   userStories: z.array(z.string()),
   dataModel: z.array(DataModelSchema),
