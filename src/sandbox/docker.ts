@@ -2,10 +2,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export interface FileEntry {
-  path: string;
-  content: string;
-}
+import type { FileEntry } from '../lib/files';
+export type { FileEntry } from '../lib/files';
 
 function safeJoin(base: string, rel: string): string {
   const resolvedBase = path.resolve(base);
