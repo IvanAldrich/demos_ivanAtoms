@@ -15,6 +15,8 @@ export async function proxyTo(
   const headers = new Headers(req.headers);
   headers.delete('cookie');
   headers.delete('host');
+  headers.delete('content-length');
+  headers.delete('connection');
 
   const method = req.method;
   const body = method === 'GET' || method === 'HEAD' ? undefined : await req.arrayBuffer();

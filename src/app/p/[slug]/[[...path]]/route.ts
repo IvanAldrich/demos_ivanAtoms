@@ -6,7 +6,7 @@ import { proxyTo } from '@/lib/proxy';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(
+async function handle(
   req: Request,
   ctx: { params: Promise<{ slug: string; path?: string[] }> },
 ) {
@@ -23,3 +23,10 @@ export async function GET(
 
   return proxyTo(req, version.containerIp, version.containerPort ?? 3001, `/p/${slug}/`, path ?? []);
 }
+
+export const GET = handle;
+export const POST = handle;
+export const PUT = handle;
+export const DELETE = handle;
+export const PATCH = handle;
+export const HEAD = handle;
