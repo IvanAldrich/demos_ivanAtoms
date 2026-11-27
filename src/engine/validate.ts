@@ -21,11 +21,11 @@ function violation(
 }
 
 function detectAbsoluteRoot(content: string): boolean {
+  // Only client-side resource references; server route strings (app.get('/api/x')) are fine.
   return (
     /(?:src|href)\s*=\s*["']\/[^/]/.test(content) ||
     /fetch\(\s*["']\/[^/]/.test(content) ||
-    /url\(\s*["']?\/[^/]/.test(content) ||
-    /["']\/(api|assets|static)\//.test(content)
+    /url\(\s*["']?\/[^/]/.test(content)
   );
 }
 
