@@ -30,7 +30,7 @@ export function loadEnv(src: Record<string, string | undefined> = process.env): 
   return {
     DASHSCOPE_API_KEY: src.DASHSCOPE_API_KEY || undefined,
     LLM_BASE_URL: llmBaseUrl,
-    LLM_MODEL: src.LLM_MODEL || 'qwen3-coder-flash',
+    LLM_MODEL: src.LLM_MODEL || 'deepseek-v4.1-flash',
     LLM_MODEL_PLANNER: src.LLM_MODEL_PLANNER || src.LLM_MODEL || 'deepseek-v4.1-flash',
     DB_PATH: src.DB_PATH || './data/app.db',
     DATA_ROOT: src.DATA_ROOT || './storage/projects',

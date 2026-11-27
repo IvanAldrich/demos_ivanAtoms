@@ -9,7 +9,7 @@ describe('loadEnv', () => {
 
   it('defaults model and isolation', () => {
     const env = loadEnv({ LLM_BASE_URL: 'http://x' });
-    expect(env.LLM_MODEL).toBe('qwen3-coder-flash');
+    expect(env.LLM_MODEL).toBe('deepseek-v4.1-flash');
     expect(env.RUNTIME_ISOLATION).toBe('container');
   });
 

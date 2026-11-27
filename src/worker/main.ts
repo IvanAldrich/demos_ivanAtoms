@@ -30,7 +30,6 @@ async function main(): Promise<void> {
     baseUrl: env.LLM_BASE_URL,
     model: env.LLM_MODEL_PLANNER,
     apiKey: env.DASHSCOPE_API_KEY,
-    timeoutMs: 180_000,
   });
 
   const rev = reviveMissing(db, { dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE });
