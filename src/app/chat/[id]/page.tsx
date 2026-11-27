@@ -205,8 +205,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     refresh();
-    const es = new EventSource(`/api/projects/${id}/events`);
-    esRef.current = es;
+    let es: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+
     const onBuild = (ev: MessageEvent) => {
       try {
         const e = JSON.parse(ev.data);
@@ -226,10 +228,55 @@ export default function ChatPage() {
         /* ignore */
       }
     };
-    es.addEventListener('build', onBuild as EventListener);
+
+    const connect = () => {
+      if (closed) return;
+      es = new EventSource(`/api/projects/${id}/events`);
+      esRef.current = es;
+      es.addEventListener('build', onBuild as EventListener);
+      es.onerror = () => {
+        if (es && es.readyState === EventSource.CLOSED) {
+          try {
+            es.close();
+          } catch {
+            /* ignore */
+          }
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(connect, 2000);
+        }
+      };
+    };
+    connect();
+
+    // Keep-alive: poll even if SSE drops, so the UI never gets stuck on a stale stage.
+    const poll = setInterval(() => {
+      refresh();
+    }, 4000);
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      refresh();
+      if (!es || es.readyState === EventSource.CLOSED) {
+        try {
+          es?.close();
+        } catch {
+          /* ignore */
+        }
+        connect();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
-      es.removeEventListener('build', onBuild as EventListener);
-      es.close();
+      closed = true;
+      clearInterval(poll);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      document.removeEventListener('visibilitychange', onVisible);
+      try {
+        es?.close();
+      } catch {
+        /* ignore */
+      }
     };
   }, [id, refresh]);
 
