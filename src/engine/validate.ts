@@ -79,6 +79,19 @@ function extractLocalRefs(content: string, filePath: string): string[] {
   return out;
 }
 
+/** Local files referenced by HTML but not present in the generated file set. */
+export function findMissingAssets(files: FileEntry[]): string[] {
+  const present = new Set(files.map((f) => f.path));
+  const missing = new Set<string>();
+  for (const f of files) {
+    if (!/\.html?$/i.test(f.path)) continue;
+    for (const ref of extractLocalRefs(f.content, f.path)) {
+      if (!present.has(ref)) missing.add(ref);
+    }
+  }
+  return [...missing];
+}
+
 export function validateArtifacts(input: {
   files: FileEntry[];
   spec: SiteSpec;

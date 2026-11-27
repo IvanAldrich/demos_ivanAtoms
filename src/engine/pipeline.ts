@@ -1,15 +1,21 @@
+import { z } from 'zod';
 import type { LlmClient } from './llm';
 import type { SiteSpec } from './schema';
 import type { FileEntry } from '../lib/files';
+import { PROMPTS } from './prompts';
 import { runSpec } from './stages/spec';
 import { runEngineer } from './stages/engineer';
 import { runReviewRepair, nextRound } from './stages/review';
-import { validateArtifacts } from './validate';
+import { validateArtifacts, findMissingAssets } from './validate';
 import { applyPatches } from './patches';
 import { normalizeRelativePaths } from './normalize';
 import { buildVersion, runVersion, stopContainer } from '../sandbox/docker';
 import { checkHealth } from '../sandbox/health';
 import type { HealthResult } from '../sandbox/health';
+
+const FilesRespSchema = z.object({
+  files: z.array(z.object({ path: z.string(), content: z.string() })),
+});
 
 export interface PipelineJob {
   projectId: string;
@@ -63,6 +69,38 @@ function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/** Deterministically close the loop on HTML references to missing local files. */
+async function fillMissingAssets(
+  llm: LlmClient,
+  files: FileEntry[],
+  spec: SiteSpec,
+  emit: EmitFn,
+): Promise<FileEntry[]> {
+  const missing = findMissingAssets(files);
+  if (missing.length === 0) return files;
+  emit('info', `completeness: generating ${missing.length} missing file(s)`, missing);
+  try {
+    const resp = await llm.completeJSON(
+      [
+        { role: 'system', content: PROMPTS.engineerSystem },
+        {
+          role: 'user',
+          content: `以下文件被 HTML 引用但尚未生成，请只生成这些文件的完整内容（不要输出其它文件）：\n${missing
+            .map((m) => `- ${m}`)
+            .join('\n')}\n类别：${spec.brief.category}；uiStyle：${spec.brief.uiStyle ?? ''}。只输出 {"files":[{"path","content"}]}。`,
+        },
+      ],
+      FilesRespSchema,
+    );
+    const existing = new Set(files.map((f) => f.path));
+    const add = resp.files.filter((f) => !existing.has(f.path));
+    return [...files, ...add];
+  } catch (e: unknown) {
+    emit('warn', 'completeness error', errMsg(e));
+    return files;
+  }
+}
+
 export async function runPipeline(
   job: PipelineJob,
   deps: PipelineDeps,
@@ -98,6 +136,7 @@ export async function runPipeline(
   let round = 0;
   for (;;) {
     files = normalizeRelativePaths(files);
+    if (!failure) files = await fillMissingAssets(deps.llm, files, spec, emit);
 
     if (!failure) {
       const v = validateArtifacts({ files, spec, mode: job.mode });
