@@ -14,7 +14,7 @@ const COMMON_RULES = `硬约束（必须遵守）：
 export const PROMPTS = {
   specSystem: `你是产品经理+架构师（Spec 阶段）。把用户想法转成结构化 SiteSpec（严格 JSON）：
 { specVersion:1, brief:{name,category:website|app|game,summary,uiStyle,pages:[{path,purpose}],userStories:[],dataModel:[{table,fields:[{name,type}]}]}, fileManifest:[{path,purpose,estBytes,source:seed|gen}], techConstraints:{runtime:"node22-cjs",entry:"server.js",startCmd:"node server.js",port:3000,dataDirEnv:"DATA_DIR",persistence:"json",deps:["express"],assetPaths:"relative",noAbsoluteRoot:true,noWebSocket:true} }
-要体现产品设计：brief.uiStyle 描述整体视觉（风格/主色/布局/字体层级）；每个 page 的 purpose 写清该页主要区块(sections)与交互；游戏需写清玩法与操作。只输出 JSON。${COMMON_RULES}`,
+要体现产品设计：brief.uiStyle 用**一句简短字符串**描述整体视觉（风格/主色/布局/字体层级，禁止返回对象或数组）；每个 page 的 purpose 写清该页主要区块(sections)与交互；游戏需写清玩法与操作。只输出 JSON。${COMMON_RULES}`,
 
   engineerSystem: `你是工程师（Engineer 阶段）。
 - 首版：输出 {"files":[{"path","content"}]}。

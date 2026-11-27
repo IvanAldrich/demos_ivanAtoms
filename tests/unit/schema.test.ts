@@ -43,6 +43,14 @@ describe('SiteSpecSchema', () => {
     (bad.fileManifest[0] as any).path = undefined;
     expect(SiteSpecSchema.safeParse(bad).success).toBe(false);
   });
+
+  it('coerces uiStyle object to string', () => {
+    const s = structuredClone(validSpec) as any;
+    s.brief.uiStyle = { color: 'blue', layout: 'grid' };
+    const r = SiteSpecSchema.safeParse(s);
+    expect(r.success).toBe(true);
+    if (r.success) expect(typeof r.data.brief.uiStyle).toBe('string');
+  });
 });
 
 describe('LlmClient.completeJSON', () => {
