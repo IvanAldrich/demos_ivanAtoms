@@ -34,10 +34,10 @@
 | 对话式增量迭代 | i18n 多语言、营销内容矩阵、自定义域名 |
 | 数据持久化（项目级数据卷） | 增长闭环 Agent（SEO 自动优化 / Google Ads / 数据分析） |
 | 版本化 + 原子切换（顺带做回滚） | 真实支付（Stripe）/ 邮件等外部账号集成 |
-| 轻量 SSE 构建回放 | 多智能体编排 / Race Mode |
+| 轻量 SSE 构建回放 | 自主多智能体对话 / Race Mode（改用三段角色流水线） |
 | 1 个首页 + 工作区 + 预览/发布 | 复用 atoms.dev 品牌素材 |
 
-> 注：atoms.dev 的"增长 Agent"（Sarah/Adrian/David）属于获客环节，依赖外部广告与分析账号，与"生成→运行→迭代"主链路无关，本期不做；但产品扩展性（多类型生成、迭代）照做。
+> 注：① atoms.dev 的"增长 Agent"（Sarah 的 SEO / Adrian 的 Ads / David 的数据分析）属获客环节，依赖外部账号，与主链路无关，本期不做；② Iris（深度调研）为研发调研，与代码生成无关，也不落地；③ 生成侧用**三段角色流水线**（Spec/Engineer/Review），不是自主多智能体对话。产品扩展性（多类型生成、迭代）照做。
 
 ---
 
@@ -87,14 +87,29 @@ Sandbox Provider (Docker)
 
 ## 5. 生成引擎（自由生成 + 精选依赖）
 
-### 5.1 生成流程（worker 内）
+### 5.0 角色映射（atoms.dev 核心 Agent → 本产品阶段）
+
+| atoms Agent | 本产品落点 | 说明 |
+|---|---|---|
+| Mike（Team Leader） | worker 编排状态机 + Publish/迭代 审批点 | 非 LLM 对话体 |
+| Emma（PM）+ Bob（Architect） | **Spec 阶段** | 想法 → 结构化 brief + 文件清单 + 技术约定（JSON schema 校验） |
+| Alex（Engineer） | **Engineer 阶段** | 依据清单生成多文件 Node 工程 |
+| （Reviewer） | **Review/Repair 阶段** | 确定性校验 + 构建错误 → 有界自修复 ≤3 |
+| Iris（Deep Researcher） | 不落地 | 研发调研，与代码生成无关 |
+| Sarah / Adrian / David | 不落地 | 增长/获客，依赖外部账号 |
+
+> 设计原则：可靠性来自「角色分离 + 结构化契约 + 确定性校验 + 有界自修复」，而非堆叠更多自主对话 Agent。每段输出过 schema 再喂下一段。
+
+### 5.1 生成流程（worker 内，三段角色流水线）
 ```
-Plan   ：组装 brief（idea + 模板种子 + 迭代时读取现有文件清单/关键文件）
-Generate：LLM 产出多文件 Node 工程（文件路径 + 内容）
-Validate：确定性校验（见 5.2），失败直接结构化回喂，不浪费构建
-Build  ：沙箱 install(可选)→start→health
-Repair ：构建/启动失败 → 错误结构化回喂 → 重试（总尝试 ≤3）
-Ready  ：落 version；按需原子切换发布指针
+[Mike 编排] 领任务(initial|iterate) → 驱动各阶段 → 落地 version
+ ① Spec (Emma+Bob)  ：组装 brief（idea + 模板种子 + 迭代时现有文件清单）
+                      → 输出 { brief, fileManifest, techConstraints }（JSON schema 校验）
+ ② Engineer (Alex)  ：依据 manifest 产出多文件 Node 工程（路径 + 内容）
+ ③ 确定性校验        ：见 5.2，失败结构化回喂（不浪费一次构建）
+ ④ Build (沙箱)      ：install(可选) → start → health
+ ⑤ Review/Repair    ：构建/启动失败 → 错误回喂 → 有界重试（总尝试 ≤3）
+ ⑥ Ready            ：落 version；按需原子切换发布指针
 ```
 
 ### 5.2 确定性校验（构建前）
@@ -247,7 +262,7 @@ GET    /api/health                       DB / 隔离级别 / worker 心跳 / 队
 
 1. **自由生成(Node) vs 纯模板**：取自由生成，产品上限高；靠"精选依赖 + 约定 + 自修复"换稳定，牺牲"任意语言/多框架"。
 2. **精选依赖/免安装 vs 任意 npm install**：默认免安装秒起，超集走受控 install 兜底。
-3. **单 Agent 单模型 vs 多智能体**：单 Agent，链路清晰、可观测；多智能体/Race Mode 延后。
+3. **三段角色流水线 vs 自主多智能体**：采用 Spec(Emma+Bob)→Engineer(Alex)→Review/Repair 结构化流水线（Mike 编排），兼顾可靠性与可观测；自主多智能体/Race Mode 延后。
 4. **SQLite vs Postgres**：demo 足够，单实例；生产化再换。
 5. **无注册（设备令牌）vs 账号体系**：按题意，用 ownerToken 支撑"我的项目"。
 6. **本地优先 vs 直接上云**：本地验证 + 一键切 ECS，规避早期云端调试成本。
