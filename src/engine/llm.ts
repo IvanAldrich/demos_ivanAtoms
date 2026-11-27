@@ -81,36 +81,37 @@ export class LlmClient {
         ...(json && withFormat ? { response_format: { type: 'json_object' } } : {}),
       });
 
-    const send = async (withFormat: boolean): Promise<Response> => {
-      const ctrl = new AbortController();
-      const timeoutMs = Number(process.env.LLM_TIMEOUT_MS) || 120_000;
-      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-      try {
-        return await fetch(url, { method: 'POST', headers, body: buildBody(withFormat), signal: ctrl.signal });
-      } catch (e: unknown) {
-        if ((e as { name?: string })?.name === 'AbortError') throw new Error('llm_timeout');
-        throw e;
-      } finally {
-        clearTimeout(timer);
-      }
-    };
+    // Timeout covers the WHOLE request including response body read.
+    const timeoutMs = Number(process.env.LLM_TIMEOUT_MS) || 120_000;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
 
-    let res = await send(true);
-    if (!res.ok && res.status === 400) {
-      const text = await res.text();
-      if (/response_format|json_object/i.test(text)) {
-        res = await send(false);
-      } else {
+    const doFetch = (withFormat: boolean) =>
+      fetch(url, { method: 'POST', headers, body: buildBody(withFormat), signal: ctrl.signal });
+
+    try {
+      let res = await doFetch(true);
+      if (!res.ok && res.status === 400) {
+        const text = await res.text();
+        if (/response_format|json_object/i.test(text)) {
+          res = await doFetch(false);
+        } else {
+          throw new Error(`llm_status_${res.status}: ${text.slice(0, 200)}`);
+        }
+      }
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
         throw new Error(`llm_status_${res.status}: ${text.slice(0, 200)}`);
       }
+      const data = (await res.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      return data.choices?.[0]?.message?.content ?? '';
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name === 'AbortError') throw new Error('llm_timeout');
+      throw e;
+    } finally {
+      clearTimeout(timer);
     }
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`llm_status_${res.status}: ${text.slice(0, 200)}`);
-    }
-    const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    return data.choices?.[0]?.message?.content ?? '';
   }
 }
