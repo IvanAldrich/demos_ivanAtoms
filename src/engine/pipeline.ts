@@ -17,6 +17,36 @@ const FilesRespSchema = z.object({
   files: z.array(z.object({ path: z.string(), content: z.string() })),
 });
 
+const VerifyRespSchema = z.object({
+  satisfied: z.boolean(),
+  reason: z.string().optional(),
+  files: z.array(z.object({ path: z.string(), content: z.string() })).optional(),
+});
+
+/** Ask a stronger model to verify the user's latest request is actually implemented; return fixed files if not. */
+async function verifyAgainstRequest(
+  llm: LlmClient,
+  spec: SiteSpec,
+  files: FileEntry[],
+  userMessage: string,
+): Promise<FileEntry[] | null> {
+  const user = [
+    `用户最新要求：${userMessage}`,
+    `SiteSpec:\n${JSON.stringify(spec)}`,
+    `当前文件:\n${JSON.stringify(files)}`,
+    '请严格判断当前代码是否真正实现了上述要求；未满足则给出修正后的全部文件。只输出 JSON。',
+  ].join('\n\n');
+  const r = await llm.completeJSON(
+    [
+      { role: 'system', content: PROMPTS.verifySystem },
+      { role: 'user', content: user },
+    ],
+    VerifyRespSchema,
+  );
+  if (!r.satisfied && r.files && r.files.length) return r.files;
+  return null;
+}
+
 const STAGES = ['需求分析与架构', '生成代码', '代码自检', '构建容器', '启动与健康检查', '发布就绪'];
 
 export interface PipelineJob {
@@ -162,6 +192,19 @@ export async function runPipeline(
     }
   } catch (e: unknown) {
     failure = `engineer: ${errMsg(e)}`;
+  }
+
+  if (!failure && job.mode === 'iterate' && job.userMessage) {
+    emit('info', '验收：核对是否满足你的最新要求');
+    try {
+      const fixed = await verifyAgainstRequest(planner, spec, files, job.userMessage);
+      if (fixed) {
+        files = fixed;
+        emit('info', '已按你的要求校正实现');
+      }
+    } catch (e: unknown) {
+      emit('warn', 'verify error', errMsg(e));
+    }
   }
 
   let round = 0;

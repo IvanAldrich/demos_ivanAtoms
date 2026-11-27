@@ -8,6 +8,8 @@ const COMMON_RULES = `硬约束（必须遵守）：
 - 必须生成 index.html 中引用到的所有文件（如 assets/game.js、assets/style.css、图片），内容要完整可用；严禁只写引用而不生成对应文件。所有资源用相对路径引用。
 - 界面必须专业、整洁、响应式（桌面与手机都可用）：合理留白与栅格布局、统一配色与字号层级；必须包含 <meta name="viewport" content="width=device-width, initial-scale=1">，用真实 CSS（flex/grid）实现，禁止裸 HTML 无样式。
 - 提供空状态 / 加载中 / 错误提示等交互状态；使用语义化标签与足够对比度（可访问性）。
+- 若面向手机/移动端：必须提供屏幕内操控（摇杆/方向键等），在窄屏(<=768px)或触摸设备上**默认可见且可操作**；控件显示逻辑必须可达正确（严禁“初始 hidden、却在不可达分支里才取消隐藏”这类 bug）；须绑定 touch/pointer 事件并阻止页面滚动。
+- 功能必须“真正可用”，不是只在代码/文案里提到就算实现（元素要可见、事件要绑定生效）。
 - 持久化：所有数据写入 process.env.DATA_DIR（= /app/data）下的 JSON 文件；不得写入其他目录。
 - 单文件 <= 32KB，总文件数 <= 12。`;
 
@@ -26,4 +28,8 @@ export const PROMPTS = {
 
   reviewSystem: `你是评审+修复（Review/Repair 阶段）。根据失败信息与当前文件，输出 {"diagnosis":"...","files":[...]} 或 {"diagnosis":"...","patches":[...]} 的修复版本。
 只输出 JSON。${COMMON_RULES}`,
+
+  verifySystem: `你是严格的"需求达成验收员"。给定：用户最新修改要求、SiteSpec、当前完整文件。判断当前代码是否**真正实现**了该要求（看功能是否可见/可用/生效，而非仅文字提及或占位）。
+输出 JSON：{"satisfied":true}；若未满足，输出 {"satisfied":false,"reason":"...","files":[{"path","content"}]} 给出**修正后的全部文件**（完整内容）。
+注意：移动端控件（摇杆/方向键）必须窄屏/触屏默认可见且可操作；事件必须绑定生效；禁止不可达的显示逻辑。只输出 JSON。${COMMON_RULES}`,
 } as const;
