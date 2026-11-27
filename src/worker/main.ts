@@ -49,6 +49,7 @@ async function main(): Promise<void> {
     }
 
     emit('info', `job ${job.type} v${version.n} started`);
+    projects.update(db, project.id, { status: 'building' });
     const hb = setInterval(() => jobs.heartbeat(db, job.id), 10_000);
 
     try {
@@ -105,7 +106,7 @@ async function main(): Promise<void> {
           db,
           project.id,
           'assistant',
-          `已生成 v${version.n}《${result.brief?.name ?? project.name}》${result.brief?.category ? `(${result.brief.category})` : ''}。${result.brief?.summary ?? ''} 共 ${result.files?.length ?? 0} 个文件。点击右上角「发布」获取公开链接。`
+          `✅ 已完成：v${version.n}《${result.brief?.name ?? project.name}》${result.brief?.category ? `(${result.brief.category})` : ''}。${result.brief?.summary ?? ''} 共 ${result.files?.length ?? 0} 个文件。可在右侧「预览」查看，或点「发布」获取公开链接。`
             .replace(/\s+/g, ' ')
             .trim(),
         );
@@ -118,7 +119,7 @@ async function main(): Promise<void> {
           db,
           project.id,
           'assistant',
-          `本次生成未完成：${(result.error ?? '').slice(0, 200)}。可继续对话调整需求或点击重试。`,
+          `⚠️ 本次未完成：${(result.error ?? '').slice(0, 200)}。可继续对话调整需求，或点击「重试」。`,
         );
       }
     } catch (e: unknown) {
@@ -126,7 +127,7 @@ async function main(): Promise<void> {
       versions.setFailed(db, version.id, msg);
       jobs.setStatus(db, job.id, 'failed', { error: msg });
       emit('error', 'job crashed', msg);
-      messages.add(db, project.id, 'assistant', `生成过程出错：${msg.slice(0, 200)}`);
+      messages.add(db, project.id, 'assistant', `⚠️ 生成过程出错：${msg.slice(0, 200)}`);
     } finally {
       clearInterval(hb);
     }
