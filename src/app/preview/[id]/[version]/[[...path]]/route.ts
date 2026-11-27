@@ -1,7 +1,8 @@
-import { serverDb } from '@/lib/server';
+import { serverDb, serverEnv } from '@/lib/server';
 import * as projects from '@/lib/repo/projects';
 import * as versions from '@/lib/repo/versions';
 import { proxyTo } from '@/lib/proxy';
+import { ensureVersionRunning } from '@/sandbox/ensure';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,13 +13,21 @@ async function handle(
 ) {
   const { id, version: versionId, path } = await ctx.params;
   const db = serverDb();
+  const env = serverEnv();
   const project = projects.get(db, id);
   if (!project) return new Response('not_found', { status: 404 });
 
-  const version = versions.get(db, versionId);
-  if (!version || version.projectId !== id || version.status !== 'ready' || !version.containerIp) {
+  let version = versions.get(db, versionId);
+  if (!version || version.projectId !== id || version.status !== 'ready') {
     return new Response('version_unavailable', { status: 503 });
   }
+
+  try {
+    version = await ensureVersionRunning(db, { dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE }, version);
+  } catch {
+    /* fall through */
+  }
+  if (!version.containerIp) return new Response('version_unavailable', { status: 503 });
 
   return proxyTo(
     req,

@@ -17,15 +17,23 @@ export const DataModelSchema = z.object({
 
 export const BriefSchema = z.object({
   name: z.string(),
-  category: z.enum(['website', 'app', 'game']),
+  category: z.preprocess(
+    (v) => (typeof v === 'string' ? v.toLowerCase() : v),
+    z.enum(['website', 'app', 'game']),
+  ),
   summary: z.string(),
-  // Models sometimes return an object here; coerce to a readable string.
   uiStyle: z.preprocess(
     (v) => (v && typeof v === 'object' ? JSON.stringify(v) : v),
     z.string().optional(),
   ),
-  pages: z.array(PageSchema),
-  userStories: z.array(z.string()),
+  pages: z.preprocess(
+    (v) => (Array.isArray(v) ? v.map((p) => (typeof p === 'string' ? { path: p, purpose: '' } : p)) : v),
+    z.array(PageSchema),
+  ),
+  userStories: z.preprocess(
+    (v) => (Array.isArray(v) ? v.map((s) => (typeof s === 'string' ? s : JSON.stringify(s))) : v),
+    z.array(z.string()),
+  ),
   dataModel: z.array(DataModelSchema),
 });
 

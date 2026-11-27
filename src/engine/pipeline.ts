@@ -47,6 +47,34 @@ async function verifyAgainstRequest(
   return null;
 }
 
+async function smokeServer(
+  files: FileEntry[],
+  ip: string,
+  port: number,
+): Promise<{ ok: boolean; detail?: string }> {
+  const server = files.find((f) => /(^|\/)server\.js$/.test(f.path));
+  if (!server) return { ok: true };
+  const routes: string[] = [];
+  const re = /app\.get\(\s*['"]([^'"]+)['"]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(server.content))) {
+    const r = m[1];
+    if (r.includes('*') || r.includes(':') || r === '/') continue;
+    routes.push(r);
+  }
+  for (const r of routes.slice(0, 8)) {
+    try {
+      const res = await fetch(`http://${ip}:${port}${r.startsWith('/') ? r : '/' + r}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.status >= 500) return { ok: false, detail: `${r} -> ${res.status}` };
+    } catch {
+      return { ok: false, detail: `${r} unreachable` };
+    }
+  }
+  return { ok: true };
+}
+
 const STAGES = ['需求分析与架构', '生成代码', '代码自检', '构建容器', '启动与健康检查', '发布就绪'];
 
 export interface PipelineJob {
@@ -151,47 +179,48 @@ export async function runPipeline(
     });
   emitStage(1);
 
-  const specLlm = job.mode === 'initial' ? planner : deps.llm;
-  const spec = job.spec ?? (await runSpec(specLlm, { idea: job.idea ?? '', template: job.template }));
+  let spec: SiteSpec;
+  if (job.spec) {
+    spec = job.spec;
+  } else {
+    const specLlm = job.mode === 'initial' ? planner : deps.llm;
+    try {
+      spec = await runSpec(specLlm, { idea: job.idea ?? '', template: job.template });
+    } catch (e: unknown) {
+      emit('warn', 'spec retry with planner', errMsg(e));
+      spec = await runSpec(planner, { idea: job.idea ?? '', template: job.template });
+    }
+  }
   emit('info', `spec ready: ${spec.brief.category} / ${spec.brief.name}`);
 
   let files: FileEntry[] = job.existingFiles ?? [];
   let failure = '';
 
   emitStage(2);
+  const engMode: 'initial' | 'rewrite' = job.mode === 'initial' ? 'initial' : 'rewrite';
   try {
     const eng = await runEngineer(deps.llm, {
       spec,
-      mode: job.mode,
+      mode: engMode,
       existingFiles: job.existingFiles,
       userMessage: job.userMessage,
     });
-    if (job.mode === 'initial') {
-      files = eng.files ?? [];
-      if (files.length === 0) failure = 'engineer_returned_no_files';
-    } else {
-      const applied = applyPatches(job.existingFiles ?? [], eng.patches ?? []);
-      if (applied.ok) {
-        files = applied.files;
-      } else {
-        // Patch matching is brittle; fall back to a full rewrite of all files.
-        emit('warn', 'patch failed, falling back to full rewrite');
-        try {
-          const rw = await runEngineer(deps.llm, {
-            spec,
-            mode: 'rewrite',
-            existingFiles: job.existingFiles,
-            userMessage: job.userMessage,
-          });
-          if (rw.files && rw.files.length) files = rw.files;
-          else failure = `patch_error: ${JSON.stringify(applied.violations)}`;
-        } catch {
-          failure = `patch_error: ${JSON.stringify(applied.violations)}`;
-        }
-      }
-    }
+    files = eng.files ?? (job.mode === 'initial' ? [] : job.existingFiles ?? []);
+    if (files.length === 0) failure = 'engineer_returned_no_files';
   } catch (e: unknown) {
-    failure = `engineer: ${errMsg(e)}`;
+    emit('warn', 'engineer retry with planner', errMsg(e));
+    try {
+      const eng2 = await runEngineer(planner, {
+        spec,
+        mode: engMode,
+        existingFiles: job.existingFiles,
+        userMessage: job.userMessage,
+      });
+      files = eng2.files ?? [];
+      if (files.length === 0) failure = 'engineer_returned_no_files';
+    } catch (e2: unknown) {
+      failure = `engineer: ${errMsg(e2)}`;
+    }
   }
 
   if (!failure && job.mode === 'iterate' && job.userMessage) {
@@ -244,19 +273,26 @@ export async function runPipeline(
       });
       const h = await waitHealth(`http://${run.containerIp}:${port}`);
       if (h.ok) {
-        emitStage(6);
-        emit('info', 'ready');
-        return {
-          status: 'ready',
-          containerId: run.containerId,
-          containerIp: run.containerIp,
-          files,
-          repairRounds: round,
-          brief: { name: spec.brief.name, category: spec.brief.category, summary: spec.brief.summary, features: spec.brief.userStories },
-        };
+        const smoke = await smokeServer(files, run.containerIp, port);
+        if (!smoke.ok) {
+          stopContainer(run.containerId);
+          failure = `smoke: ${smoke.detail ?? 'api check failed'}`;
+        } else {
+          emitStage(6);
+          emit('info', 'ready');
+          return {
+            status: 'ready',
+            containerId: run.containerId,
+            containerIp: run.containerIp,
+            files,
+            repairRounds: round,
+            brief: { name: spec.brief.name, category: spec.brief.category, summary: spec.brief.summary, features: spec.brief.userStories },
+          };
+        }
+      } else {
+        stopContainer(run.containerId);
+        failure = `health: ${h.reason ?? 'unknown'}`;
       }
-      stopContainer(run.containerId);
-      failure = `health: ${h.reason ?? 'unknown'}`;
     }
 
     emit('warn', `attempt failed (round ${round})`, failure);
