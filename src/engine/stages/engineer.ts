@@ -31,13 +31,13 @@ export async function runEngineer(
   llm: LlmClient,
   input: {
     spec: SiteSpec;
-    mode: 'initial' | 'iterate';
+    mode: 'initial' | 'iterate' | 'rewrite';
     existingFiles?: FileEntry[];
     userMessage?: string;
   },
 ): Promise<{ files?: FileEntry[]; patches?: Patch[] }> {
   const userParts = [`SiteSpec:\n${JSON.stringify(input.spec)}`];
-  if (input.mode === 'iterate') {
+  if (input.mode !== 'initial') {
     userParts.push(`现有文件:\n${JSON.stringify(contextFiles(input.existingFiles))}`);
     if (input.userMessage) userParts.push(`修改要求：${input.userMessage}`);
   }
@@ -47,10 +47,10 @@ export async function runEngineer(
     { role: 'user' as const, content: userParts.join('\n\n') },
   ];
 
-  if (input.mode === 'initial') {
-    const r = await llm.completeJSON(msgs, FilesResp);
-    return { files: r.files };
+  if (input.mode === 'iterate') {
+    const r = await llm.completeJSON(msgs, PatchesResp);
+    return { patches: r.patches };
   }
-  const r = await llm.completeJSON(msgs, PatchesResp);
-  return { patches: r.patches };
+  const r = await llm.completeJSON(msgs, FilesResp);
+  return { files: r.files };
 }

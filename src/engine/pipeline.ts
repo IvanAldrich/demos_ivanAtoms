@@ -121,7 +121,8 @@ export async function runPipeline(
     });
   emitStage(1);
 
-  const spec = job.spec ?? (await runSpec(planner, { idea: job.idea ?? '', template: job.template }));
+  const specLlm = job.mode === 'initial' ? planner : deps.llm;
+  const spec = job.spec ?? (await runSpec(specLlm, { idea: job.idea ?? '', template: job.template }));
   emit('info', `spec ready: ${spec.brief.category} / ${spec.brief.name}`);
 
   let files: FileEntry[] = job.existingFiles ?? [];
@@ -140,8 +141,24 @@ export async function runPipeline(
       if (files.length === 0) failure = 'engineer_returned_no_files';
     } else {
       const applied = applyPatches(job.existingFiles ?? [], eng.patches ?? []);
-      if (applied.ok) files = applied.files;
-      else failure = `patch_error: ${JSON.stringify(applied.violations)}`;
+      if (applied.ok) {
+        files = applied.files;
+      } else {
+        // Patch matching is brittle; fall back to a full rewrite of all files.
+        emit('warn', 'patch failed, falling back to full rewrite');
+        try {
+          const rw = await runEngineer(deps.llm, {
+            spec,
+            mode: 'rewrite',
+            existingFiles: job.existingFiles,
+            userMessage: job.userMessage,
+          });
+          if (rw.files && rw.files.length) files = rw.files;
+          else failure = `patch_error: ${JSON.stringify(applied.violations)}`;
+        } catch {
+          failure = `patch_error: ${JSON.stringify(applied.violations)}`;
+        }
+      }
     }
   } catch (e: unknown) {
     failure = `engineer: ${errMsg(e)}`;

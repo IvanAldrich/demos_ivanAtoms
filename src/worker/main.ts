@@ -152,6 +152,7 @@ async function main(): Promise<void> {
       versions.setFailed(db, version.id, msg);
       jobs.setStatus(db, job.id, 'failed', { error: msg });
       emit('error', 'job crashed', msg);
+      projects.update(db, project.id, { status: 'failed' });
       messages.add(db, project.id, 'assistant', `⚠️ 生成过程出错：${msg.slice(0, 200)}`, { kind: 'error', error: msg });
     } finally {
       clearInterval(hb);
