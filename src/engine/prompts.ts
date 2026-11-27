@@ -10,7 +10,7 @@ const COMMON_RULES = `硬约束（必须遵守）：
 - 提供空状态 / 加载中 / 错误提示等交互状态；使用语义化标签与足够对比度（可访问性）。
 - 若面向手机/移动端：必须提供屏幕内操控（摇杆/方向键等），在窄屏(<=768px)或触摸设备上**默认可见且可操作**；控件显示逻辑必须可达正确（严禁“初始 hidden、却在不可达分支里才取消隐藏”这类 bug）；须绑定 touch/pointer 事件并阻止页面滚动。
 - 功能必须“真正可用”，不是只在代码/文案里提到就算实现（元素要可见、事件要绑定生效）。
-- 若工程包含根目录 index.html，服务器必须让 `GET /` 返回 200（例如 `app.use(express.static('.'))` 或 `app.get('/', (req,res)=>res.sendFile(path.join(__dirname,'index.html')))`），保证打开根路径即可看到首页；不要只 `express.static('assets')` 导致根路径 404。
+- 若工程包含根目录 index.html，服务器必须让 GET / 返回 200（例如 express.static('.') 或 app.get('/', sendFile 根目录 index.html)），保证打开根路径即可看到首页；不要只 express.static('assets') 导致根路径 404。
 - 持久化：所有数据写入 process.env.DATA_DIR（= /app/data）下的 JSON 文件；不得写入其他目录。
 - 单文件 <= 32KB，总文件数 <= 12。`;
 
