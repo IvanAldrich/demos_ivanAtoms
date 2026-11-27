@@ -19,6 +19,7 @@ export interface LlmOptions {
   baseUrl: string;
   model: string;
   apiKey?: string;
+  timeoutMs?: number;
   transport?: Transport;
 }
 
@@ -82,7 +83,7 @@ export class LlmClient {
       });
 
     // Timeout covers the WHOLE request including response body read.
-    const timeoutMs = Number(process.env.LLM_TIMEOUT_MS) || 120_000;
+    const timeoutMs = this.opts.timeoutMs ?? (Number(process.env.LLM_TIMEOUT_MS) || 120_000);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
 

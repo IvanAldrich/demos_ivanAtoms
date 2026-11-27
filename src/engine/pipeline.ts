@@ -130,7 +130,7 @@ export async function runPipeline(
 
   emitStage(2);
   try {
-    const eng = await runEngineer(job.mode === 'initial' ? planner : deps.llm, {
+    const eng = await runEngineer(deps.llm, {
       spec,
       mode: job.mode,
       existingFiles: job.existingFiles,
