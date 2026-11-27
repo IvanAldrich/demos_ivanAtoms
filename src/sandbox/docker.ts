@@ -180,13 +180,11 @@ export function stopContainer(id: string): void {
   }
 }
 
-export function reapOrphans(projectId?: string): void {
-  const filters = ['--filter', 'label=ivanatoms=1'];
-  if (projectId) filters.push('--filter', `label=project=${projectId}`);
+export function containerAlive(id: string | null | undefined): boolean {
+  if (!id) return false;
   try {
-    const ids = docker(['ps', '-aq', ...filters]).trim();
-    if (ids) docker(['rm', '-f', ...ids.split(/\s+/)]);
+    return docker(['inspect', '-f', '{{.State.Running}}', id]).trim() === 'true';
   } catch {
-    /* ignore */
+    return false;
   }
 }

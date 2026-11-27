@@ -9,7 +9,8 @@ import { casPublish } from '../lib/cas';
 import { LlmClient } from '../engine/llm';
 import { runPipeline } from '../engine/pipeline';
 import { selectNextJob, requeueExpired } from './queue';
-import { readDirFiles, stopContainer, reapOrphans, versionDir } from '../sandbox/docker';
+import { readDirFiles, stopContainer, versionDir } from '../sandbox/docker';
+import { reviveMissing } from './revive';
 
 const CONTAINER_PORT = 3001;
 
@@ -26,11 +27,20 @@ async function main(): Promise<void> {
     apiKey: env.DASHSCOPE_API_KEY,
   });
 
-  reapOrphans();
-  process.stdout.write('[worker] started\n');
+  const rev = reviveMissing(db, { dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE });
+  process.stdout.write(`[worker] started (revived=${rev.revived})\n`);
 
+  let lastRevive = Date.now();
   for (;;) {
     requeueExpired(db);
+    if (Date.now() - lastRevive > 30_000) {
+      lastRevive = Date.now();
+      try {
+        reviveMissing(db, { dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE });
+      } catch {
+        /* ignore */
+      }
+    }
     const job = selectNextJob(db);
     if (!job) {
       await sleep(1000);
