@@ -6,24 +6,10 @@ import { runEngineer } from './stages/engineer';
 import { runReviewRepair, nextRound } from './stages/review';
 import { validateArtifacts } from './validate';
 import { applyPatches } from './patches';
+import { normalizeRelativePaths } from './normalize';
 import { buildVersion, runVersion, stopContainer } from '../sandbox/docker';
 import { checkHealth } from '../sandbox/health';
 import type { HealthResult } from '../sandbox/health';
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function waitHealth(baseUrl: string, timeoutMs = 15_000): Promise<HealthResult> {
-  const start = Date.now();
-  let last: HealthResult = { ok: false, reason: 'timeout' };
-  while (Date.now() - start < timeoutMs) {
-    last = await checkHealth(baseUrl);
-    if (last.ok) return last;
-    await sleep(500);
-  }
-  return last;
-}
 
 export interface PipelineJob {
   projectId: string;
@@ -58,6 +44,25 @@ export interface PipelineResult {
   repairRounds: number;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function waitHealth(baseUrl: string, timeoutMs = 15_000): Promise<HealthResult> {
+  const start = Date.now();
+  let last: HealthResult = { ok: false, reason: 'timeout' };
+  while (Date.now() - start < timeoutMs) {
+    last = await checkHealth(baseUrl);
+    if (last.ok) return last;
+    await sleep(500);
+  }
+  return last;
+}
+
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 export async function runPipeline(
   job: PipelineJob,
   deps: PipelineDeps,
@@ -68,31 +73,32 @@ export async function runPipeline(
   const spec = job.spec ?? (await runSpec(deps.llm, { idea: job.idea ?? '', template: job.template }));
   emit('info', `spec ready: ${spec.brief.category} / ${spec.brief.name}`);
 
-  const eng = await runEngineer(deps.llm, {
-    spec,
-    mode: job.mode,
-    existingFiles: job.existingFiles,
-    userMessage: job.userMessage,
-  });
-
-  let files: FileEntry[];
+  let files: FileEntry[] = job.existingFiles ?? [];
   let failure = '';
 
-  if (job.mode === 'initial') {
-    files = eng.files ?? [];
-    if (files.length === 0) failure = 'engineer_returned_no_files';
-  } else {
-    const applied = applyPatches(job.existingFiles ?? [], eng.patches ?? []);
-    if (applied.ok) {
-      files = applied.files;
+  try {
+    const eng = await runEngineer(deps.llm, {
+      spec,
+      mode: job.mode,
+      existingFiles: job.existingFiles,
+      userMessage: job.userMessage,
+    });
+    if (job.mode === 'initial') {
+      files = eng.files ?? [];
+      if (files.length === 0) failure = 'engineer_returned_no_files';
     } else {
-      files = job.existingFiles ?? [];
-      failure = `patch_error: ${JSON.stringify(applied.violations)}`;
+      const applied = applyPatches(job.existingFiles ?? [], eng.patches ?? []);
+      if (applied.ok) files = applied.files;
+      else failure = `patch_error: ${JSON.stringify(applied.violations)}`;
     }
+  } catch (e: unknown) {
+    failure = `engineer: ${errMsg(e)}`;
   }
 
   let round = 0;
   for (;;) {
+    files = normalizeRelativePaths(files);
+
     if (!failure) {
       const v = validateArtifacts({ files, spec, mode: job.mode });
       if (!v.ok) failure = `validation: ${JSON.stringify(v.violations)}`;
@@ -145,18 +151,22 @@ export async function runPipeline(
 
     round = nr.round;
     emit('info', `repair round ${round}: start`);
-    const rr = await runReviewRepair(deps.llm, {
-      round,
-      spec,
-      currentFiles: files,
-      failure,
-    });
-    if (rr.files && rr.files.length > 0) {
-      files = rr.files;
-    } else if (rr.patches && rr.patches.length > 0) {
-      const ap = applyPatches(files, rr.patches);
-      if (ap.ok) files = ap.files;
+    let repaired = false;
+    try {
+      const rr = await runReviewRepair(deps.llm, { round, spec, currentFiles: files, failure });
+      if (rr.files && rr.files.length > 0) {
+        files = rr.files;
+        repaired = true;
+      } else if (rr.patches && rr.patches.length > 0) {
+        const ap = applyPatches(files, rr.patches);
+        if (ap.ok) {
+          files = ap.files;
+          repaired = true;
+        }
+      }
+    } catch (e: unknown) {
+      emit('warn', 'repair error', errMsg(e));
     }
-    failure = '';
+    if (repaired) failure = '';
   }
 }

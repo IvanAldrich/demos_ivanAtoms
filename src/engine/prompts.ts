@@ -3,6 +3,7 @@ const COMMON_RULES = `硬约束（必须遵守）：
 - 入口固定为 server.js，监听 process.env.PORT。
 - 可用依赖：express（已预装，直接 require('express')），其余仅限 Node 内置模块。
 - 所有静态资源必须使用相对路径（如 "assets/x.js"），禁止根相对路径（如 "/assets/x.js"），因为应用会部署在子路径下。
+- 客户端请求也必须用相对路径：fetch("api/items")，禁止 fetch("/api/items")；HTML 的 src/href 同样用相对路径。
 - 持久化：所有数据写入 process.env.DATA_DIR（= /app/data）下的 JSON 文件；不得写入其他目录。
 - 单文件 <= 32KB，总文件数 <= 12。`;
 

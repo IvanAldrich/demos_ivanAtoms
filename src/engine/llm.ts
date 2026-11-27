@@ -22,6 +22,27 @@ export interface LlmOptions {
   transport?: Transport;
 }
 
+function extractJson(raw: string): unknown {
+  let s = raw.trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  try {
+    return JSON.parse(s);
+  } catch {
+    /* fall through */
+  }
+  const first = s.indexOf('{');
+  const last = s.lastIndexOf('}');
+  if (first >= 0 && last > first) {
+    try {
+      return JSON.parse(s.slice(first, last + 1));
+    } catch {
+      /* fall through */
+    }
+  }
+  throw new SchemaError('invalid_json');
+}
+
 /** Minimal OpenAI-compatible client; JSON-only helper used by pipeline stages. */
 export class LlmClient {
   constructor(private readonly opts: LlmOptions) {}
@@ -32,16 +53,11 @@ export class LlmClient {
     opts: { temperature?: number } = {},
   ): Promise<T> {
     const raw = await this.call(msgs, true, opts.temperature);
-    let data: unknown;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      throw new SchemaError('invalid_json');
-    }
+    const data = extractJson(raw);
     try {
       return schema.parse(data);
     } catch (e: unknown) {
-      const detail = e instanceof Error ? e.message.slice(0, 500) : 'schema_mismatch';
+      const detail = e instanceof Error ? e.message.slice(0, 600) : 'schema_mismatch';
       throw new SchemaError(detail);
     }
   }
@@ -57,17 +73,30 @@ export class LlmClient {
     const headers: Record<string, string> = { 'content-type': 'application/json' };
     if (this.opts.apiKey) headers.authorization = `Bearer ${this.opts.apiKey}`;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
+    const buildBody = (withFormat: boolean) =>
+      JSON.stringify({
         model: this.opts.model,
         messages: msgs,
         temperature,
-        ...(json ? { response_format: { type: 'json_object' } } : {}),
-      }),
-    });
-    if (!res.ok) throw new Error(`llm_status_${res.status}`);
+        ...(json && withFormat ? { response_format: { type: 'json_object' } } : {}),
+      });
+
+    const send = (withFormat: boolean) =>
+      fetch(url, { method: 'POST', headers, body: buildBody(withFormat) });
+
+    let res = await send(true);
+    if (!res.ok && res.status === 400) {
+      const text = await res.text();
+      if (/response_format|json_object/i.test(text)) {
+        res = await send(false);
+      } else {
+        throw new Error(`llm_status_${res.status}: ${text.slice(0, 200)}`);
+      }
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`llm_status_${res.status}: ${text.slice(0, 200)}`);
+    }
     const data = (await res.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
     };

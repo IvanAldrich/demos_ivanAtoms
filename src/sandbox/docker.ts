@@ -96,7 +96,7 @@ export function buildVersion(params: {
       docker(
         [
           'run', '--rm', '--network', 'bridge',
-          '-v', `${tmpDir}:/app/code`, '-w', '/app/code',
+          '-v', `${path.resolve(tmpDir)}:/app/code`, '-w', '/app/code',
           params.image,
           'npm', 'install', '--omit=dev', '--no-audit', '--no-fund',
         ],
@@ -156,8 +156,8 @@ export function runVersion(params: {
     '--security-opt', 'no-new-privileges',
     '--pids-limit', '256',
     '-m', '512m', '--cpus', '2',
-    '-v', `${codeDir}:/app/code:ro`,
-    '-v', `${dataDir}:/app/data:rw`,
+    '-v', `${path.resolve(codeDir)}:/app/code:ro`,
+    '-v', `${path.resolve(dataDir)}:/app/data:rw`,
     '-e', 'DATA_DIR=/app/data',
     '-e', `PORT=${port}`,
     '-w', '/app/code',
