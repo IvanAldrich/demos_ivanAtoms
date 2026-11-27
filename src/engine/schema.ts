@@ -62,6 +62,7 @@ export const VIOLATION_CODES = [
   'E_ABS_PATH',
   'E_FORBIDDEN_DEP',
   'E_FORBIDDEN_MODULE',
+  'E_MISSING_ASSET',
 ] as const;
 
 export type ViolationCode = (typeof VIOLATION_CODES)[number];

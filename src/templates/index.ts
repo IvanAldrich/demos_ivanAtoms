@@ -22,7 +22,7 @@ export const TEMPLATES: TemplatePreset[] = [
     key: 'game',
     name: '浏览器小游戏',
     category: 'game',
-    exampleIdea: '一个简单的贪吃蛇网页小游戏，键盘方向键操作，纯前端静态页面（index.html + canvas）',
+    exampleIdea: '一个可玩的贪吃蛇网页小游戏：方向键控制移动，吃到食物变长加分，撞墙或咬到自己结束并可重新开始，带完整页面样式',
   },
 ];
 

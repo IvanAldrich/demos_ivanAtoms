@@ -52,6 +52,33 @@ function detectForbiddenDeps(content: string): string[] {
   return out;
 }
 
+function normalizePath(p: string): string {
+  const out: string[] = [];
+  for (const seg of p.split('/')) {
+    if (!seg || seg === '.') continue;
+    if (seg === '..') out.pop();
+    else out.push(seg);
+  }
+  return out.join('/');
+}
+
+function extractLocalRefs(content: string, filePath: string): string[] {
+  const re = /(?:src|href)\s*=\s*["']([^"']+)["']/gi;
+  const dir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : '';
+  const out: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content))) {
+    let u = m[1].trim();
+    if (/^(https?:)?\/\//i.test(u) || /^(data:|mailto:|tel:|#)/i.test(u)) continue;
+    u = u.split('?')[0].split('#')[0];
+    if (!u) continue;
+    const resolved = u.startsWith('/') ? u.slice(1) : dir ? `${dir}/${u}` : u;
+    const norm = normalizePath(resolved);
+    if (norm) out.push(norm);
+  }
+  return out;
+}
+
 export function validateArtifacts(input: {
   files: FileEntry[];
   spec: SiteSpec;
@@ -59,6 +86,7 @@ export function validateArtifacts(input: {
 }): { ok: boolean; violations: Violation[] } {
   const { files, spec } = input;
   const violations: Violation[] = [];
+  const filePaths = new Set(files.map((f) => f.path));
 
   const entry = spec.techConstraints.entry || 'server.js';
   if (!files.some((f) => f.path === entry)) {
@@ -97,6 +125,20 @@ export function validateArtifacts(input: {
     }
     for (const dep of detectForbiddenDeps(f.content)) {
       violations.push(violation('E_FORBIDDEN_DEP', `forbidden dependency: ${dep}`, f.path));
+    }
+    if (/\.html?$/i.test(f.path)) {
+      for (const ref of extractLocalRefs(f.content, f.path)) {
+        if (!filePaths.has(ref)) {
+          violations.push(
+            violation(
+              'E_MISSING_ASSET',
+              `referenced file not generated: ${ref}`,
+              f.path,
+              'generate every referenced js/css/img file with full content',
+            ),
+          );
+        }
+      }
     }
   }
 

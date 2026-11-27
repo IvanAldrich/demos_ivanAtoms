@@ -77,4 +77,28 @@ describe('validateArtifacts', () => {
     const r = validateArtifacts({ files: [{ path: 'package.json', content: '{bad' }, ...ok], spec, mode: 'initial' });
     expect(r.violations.map((v) => v.code)).toContain('E_PKG_INVALID');
   });
+
+  it('flags E_MISSING_ASSET when referenced asset is not generated', () => {
+    const html = {
+      path: 'index.html',
+      content:
+        '<link rel="stylesheet" href="assets/style.css"><canvas></canvas><script src="assets/game.js"></script>',
+    };
+    const r = validateArtifacts({ files: [html, ...ok], spec, mode: 'initial' });
+    expect(r.violations.map((v) => v.code)).toContain('E_MISSING_ASSET');
+  });
+
+  it('passes when all referenced assets exist', () => {
+    const html = {
+      path: 'index.html',
+      content: '<link rel="stylesheet" href="assets/style.css"><script src="assets/game.js"></script>',
+    };
+    const files = [
+      html,
+      { path: 'assets/style.css', content: 'body{color:#fff}' },
+      { path: 'assets/game.js', content: 'console.log(1)' },
+      ...ok,
+    ];
+    expect(validateArtifacts({ files, spec, mode: 'initial' }).ok).toBe(true);
+  });
 });
