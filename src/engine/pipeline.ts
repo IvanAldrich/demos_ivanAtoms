@@ -32,6 +32,7 @@ export interface PipelineJob {
 
 export interface PipelineDeps {
   llm: LlmClient;
+  plannerLlm?: LlmClient;
   dataRoot: string;
   image: string;
   containerPort?: number;
@@ -110,6 +111,7 @@ export async function runPipeline(
   emit: EmitFn = () => {},
 ): Promise<PipelineResult> {
   const port = deps.containerPort ?? 3001;
+  const planner = deps.plannerLlm ?? deps.llm;
   const emitStage = (k: number) =>
     emit('info', `第 ${k}/${STAGES.length} 步：${STAGES[k - 1]}`, {
       kind: 'stage',
@@ -119,7 +121,7 @@ export async function runPipeline(
     });
   emitStage(1);
 
-  const spec = job.spec ?? (await runSpec(deps.llm, { idea: job.idea ?? '', template: job.template }));
+  const spec = job.spec ?? (await runSpec(planner, { idea: job.idea ?? '', template: job.template }));
   emit('info', `spec ready: ${spec.brief.category} / ${spec.brief.name}`);
 
   let files: FileEntry[] = job.existingFiles ?? [];
@@ -127,7 +129,7 @@ export async function runPipeline(
 
   emitStage(2);
   try {
-    const eng = await runEngineer(deps.llm, {
+    const eng = await runEngineer(job.mode === 'initial' ? planner : deps.llm, {
       spec,
       mode: job.mode,
       existingFiles: job.existingFiles,

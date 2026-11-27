@@ -26,6 +26,11 @@ async function main(): Promise<void> {
     model: env.LLM_MODEL,
     apiKey: env.DASHSCOPE_API_KEY,
   });
+  const plannerLlm = new LlmClient({
+    baseUrl: env.LLM_BASE_URL,
+    model: env.LLM_MODEL_PLANNER,
+    apiKey: env.DASHSCOPE_API_KEY,
+  });
 
   const rev = reviveMissing(db, { dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE });
   process.stdout.write(`[worker] started (revived=${rev.revived})\n`);
@@ -67,7 +72,7 @@ async function main(): Promise<void> {
       if (job.type === 'initial') {
         result = await runPipeline(
           { projectId: project.id, version: version.n, mode: 'initial', idea: project.idea, template: project.templateKey ?? undefined },
-          { llm, dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE, containerPort: CONTAINER_PORT },
+          { llm, plannerLlm, dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE, containerPort: CONTAINER_PORT },
           emit,
         );
       } else {
@@ -89,7 +94,7 @@ async function main(): Promise<void> {
             userMessage: lastUser,
             existingFiles,
           },
-          { llm, dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE, containerPort: CONTAINER_PORT },
+          { llm, plannerLlm, dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE, containerPort: CONTAINER_PORT },
           emit,
         );
       }

@@ -11,6 +11,7 @@ export interface Env {
   DASHSCOPE_API_KEY?: string;
   LLM_BASE_URL: string;
   LLM_MODEL: string;
+  LLM_MODEL_PLANNER: string;
   DB_PATH: string;
   DATA_ROOT: string;
   SANDBOX_IMAGE: string;
@@ -29,7 +30,8 @@ export function loadEnv(src: Record<string, string | undefined> = process.env): 
   return {
     DASHSCOPE_API_KEY: src.DASHSCOPE_API_KEY || undefined,
     LLM_BASE_URL: llmBaseUrl,
-    LLM_MODEL: src.LLM_MODEL || 'qwen3-coder-plus',
+    LLM_MODEL: src.LLM_MODEL || 'qwen3-coder-flash',
+    LLM_MODEL_PLANNER: src.LLM_MODEL_PLANNER || src.LLM_MODEL || 'deepseek-v4.1-flash',
     DB_PATH: src.DB_PATH || './data/app.db',
     DATA_ROOT: src.DATA_ROOT || './storage/projects',
     SANDBOX_IMAGE: src.SANDBOX_IMAGE || 'ivanatoms/base:node22',
