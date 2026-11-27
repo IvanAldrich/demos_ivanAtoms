@@ -26,6 +26,25 @@ export function projectRoot(dataRoot: string, projectId: string): string {
   return path.join(dataRoot, projectId);
 }
 
+/** Read all files under a version dir into relative FileEntry[] (to feed iterative edits). */
+export function readDirFiles(dir: string, base = dir): FileEntry[] {
+  const out: FileEntry[] = [];
+  if (!fs.existsSync(dir)) return out;
+  for (const name of fs.readdirSync(dir)) {
+    const full = path.join(dir, name);
+    const st = fs.statSync(full);
+    if (st.isDirectory()) {
+      out.push(...readDirFiles(full, base));
+    } else {
+      out.push({
+        path: path.relative(base, full).split(path.sep).join('/'),
+        content: fs.readFileSync(full, 'utf8'),
+      });
+    }
+  }
+  return out;
+}
+
 export function versionDir(dataRoot: string, projectId: string, n: number): string {
   return path.join(projectRoot(dataRoot, projectId), 'versions', `v${n}`);
 }
