@@ -220,7 +220,7 @@ GET    /api/health                       DB / 隔离级别 / worker 心跳 / 队
 - **Skill（自建）**：`生成产物脚手架规范`（约定/预算/入口）、`产物 E2E 验收`（起服务 + browser-use 跑主链路）。保留 `frontend-patterns`。
 - **Subagent**：架构/PRD、生成器实现、代码审查（依赖与安全）、测试验证、文档撰写（与全栈工程师协作，独立上下文）。
 - **MCP**：`browser-use`（预览联调/E2E）。
-- **`.env` 键**：`DASHSCOPE_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`、`SESSION_SECRET`、`DATABASE_URL=file:./data/app.db`、`DATA_ROOT=./storage/projects`、`SANDBOX_IMAGE=ivanatoms/base:node22`、`BASE_URL`、`RUNTIME_ISOLATION=container`。
+- **`.env` 键**：`DASHSCOPE_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`、`SESSION_SECRET`、`DB_PATH=./data/app.db`、`DATA_ROOT=./storage/projects`、`SANDBOX_IMAGE=ivanatoms/base:node22`、`BASE_URL`、`RUNTIME_ISOLATION=container`。
 
 ---
 
