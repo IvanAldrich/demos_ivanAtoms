@@ -8,7 +8,8 @@
     "start": "next start",
     "worker": "tsx src/worker/main.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "eval": "node scripts/eval.mjs"
   },
   "dependencies": {
     "next": "^15.1.0",

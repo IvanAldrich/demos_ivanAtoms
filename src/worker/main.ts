@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { loadEnv } from '../env';
 import { openDb } from '../lib/db';
 import * as projects from '../lib/repo/projects';
@@ -18,9 +20,51 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function acquireWorkerLock(dbPath: string): boolean {
+  const lock = path.join(path.dirname(path.resolve(dbPath)), 'worker.lock');
+  try {
+    fs.mkdirSync(path.dirname(lock), { recursive: true });
+    if (fs.existsSync(lock)) {
+      const pid = Number(fs.readFileSync(lock, 'utf8').trim());
+      if (pid && pid !== process.pid) {
+        try {
+          process.kill(pid, 0); // alive?
+          return false;
+        } catch {
+          /* stale lock */
+        }
+      }
+    }
+    fs.writeFileSync(lock, String(process.pid));
+    const cleanup = () => {
+      try {
+        if (fs.readFileSync(lock, 'utf8').trim() === String(process.pid)) fs.unlinkSync(lock);
+      } catch {
+        /* ignore */
+      }
+    };
+    process.on('exit', cleanup);
+    process.on('SIGINT', () => {
+      cleanup();
+      process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+      cleanup();
+      process.exit(0);
+    });
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 async function main(): Promise<void> {
   const env = loadEnv();
   const db = openDb(env.DB_PATH);
+  if (!acquireWorkerLock(env.DB_PATH)) {
+    console.error('[worker] another worker is already running; exiting');
+    process.exit(1);
+  }
   const llm = new LlmClient({
     baseUrl: env.LLM_BASE_URL,
     model: env.LLM_MODEL,
@@ -97,6 +141,11 @@ async function main(): Promise<void> {
           { llm, plannerLlm, dataRoot: env.DATA_ROOT, image: env.SANDBOX_IMAGE, containerPort: CONTAINER_PORT },
           emit,
         );
+      }
+
+      if (jobs.get(db, job.id)?.status !== 'running') {
+        emit('warn', 'job no longer active; discard result');
+        continue;
       }
 
       if (result.status === 'ready' && result.containerId && result.containerIp) {

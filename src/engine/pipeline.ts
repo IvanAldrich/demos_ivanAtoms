@@ -9,6 +9,7 @@ import { runReviewRepair, nextRound } from './stages/review';
 import { validateArtifacts, findMissingAssets } from './validate';
 import { applyPatches } from './patches';
 import { normalizeRelativePaths } from './normalize';
+import { requestGate } from './request-gate';
 import { buildVersion, runVersion, stopContainer } from '../sandbox/docker';
 import { checkHealth } from '../sandbox/health';
 import type { HealthResult } from '../sandbox/health';
@@ -250,6 +251,11 @@ export async function runPipeline(
   for (;;) {
     files = normalizeRelativePaths(files);
     if (!failure) files = await fillMissingAssets(deps.llm, files, spec, emit);
+
+    if (!failure && job.mode === 'iterate' && job.userMessage) {
+      const gate = requestGate(files, job.existingFiles ?? [], job.userMessage);
+      if (gate) failure = `gate: ${gate}`;
+    }
 
     if (!failure) {
       emitStage(3);
