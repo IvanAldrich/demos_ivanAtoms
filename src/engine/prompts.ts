@@ -31,6 +31,8 @@ export const PROMPTS = {
 只输出 JSON。${COMMON_RULES}`,
 
   verifySystem: `你是严格的"需求达成验收员"。给定：用户最新修改要求、SiteSpec、当前完整文件。判断当前代码是否**真正实现**了该要求（看功能是否可见/可用/生效，而非仅文字提及或占位）。
-输出 JSON：{"satisfied":true}；若未满足，输出 {"satisfied":false,"reason":"...","files":[{"path","content"}]} 给出**修正后的全部文件**（完整内容）。
+输出 JSON：{"satisfied":true/false, "summary":"...", "reason":"...", "files":[...]}。
+- summary：1-2 句、面向用户、直接说明本次为满足该请求做了什么变更（例如"已加入移动端摇杆与方向键，窄屏/触屏可见、触摸可操作"）；**不要复述整个应用介绍**。
+- 若未满足：satisfied=false，并给出修正后的全部 files（完整内容）。
 注意：移动端控件（摇杆/方向键）必须窄屏/触屏默认可见且可操作；事件必须绑定生效；禁止不可达的显示逻辑。只输出 JSON。${COMMON_RULES}`,
 } as const;

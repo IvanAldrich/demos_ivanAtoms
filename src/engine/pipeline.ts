@@ -20,21 +20,22 @@ const FilesRespSchema = z.object({
 const VerifyRespSchema = z.object({
   satisfied: z.boolean(),
   reason: z.string().optional(),
+  summary: z.string().optional(),
   files: z.array(z.object({ path: z.string(), content: z.string() })).optional(),
 });
 
-/** Ask a stronger model to verify the user's latest request is actually implemented; return fixed files if not. */
+/** Verify the user's latest request is actually implemented; return fixed files + a user-facing change summary. */
 async function verifyAgainstRequest(
   llm: LlmClient,
   spec: SiteSpec,
   files: FileEntry[],
   userMessage: string,
-): Promise<FileEntry[] | null> {
+): Promise<{ files: FileEntry[] | null; summary?: string }> {
   const user = [
     `用户最新要求：${userMessage}`,
     `SiteSpec:\n${JSON.stringify(spec)}`,
     `当前文件:\n${JSON.stringify(files)}`,
-    '请严格判断当前代码是否真正实现了上述要求；未满足则给出修正后的全部文件。只输出 JSON。',
+    '请严格判断当前代码是否真正实现了上述要求；未满足则给出修正后的全部文件。并且无论如何都给出 summary（1-2 句、面向用户、直接说明为满足该请求做了什么变更，不要复述整个应用介绍）。只输出 JSON。',
   ].join('\n\n');
   const r = await llm.completeJSON(
     [
@@ -43,8 +44,8 @@ async function verifyAgainstRequest(
     ],
     VerifyRespSchema,
   );
-  if (!r.satisfied && r.files && r.files.length) return r.files;
-  return null;
+  const fixed = !r.satisfied && r.files && r.files.length ? r.files : null;
+  return { files: fixed, summary: r.summary };
 }
 
 async function smokeServer(
@@ -110,6 +111,7 @@ export interface PipelineResult {
   error?: string;
   repairRounds: number;
   brief?: { name: string; category: string; summary: string; features?: string[] };
+  reply?: string;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -195,6 +197,7 @@ export async function runPipeline(
 
   let files: FileEntry[] = job.existingFiles ?? [];
   let failure = '';
+  let reply: string | undefined;
 
   emitStage(2);
   const engMode: 'initial' | 'rewrite' = job.mode === 'initial' ? 'initial' : 'rewrite';
@@ -226,13 +229,19 @@ export async function runPipeline(
   if (!failure && job.mode === 'iterate' && job.userMessage) {
     emit('info', '验收：核对是否满足你的最新要求');
     try {
-      const fixed = await verifyAgainstRequest(planner, spec, files, job.userMessage);
-      if (fixed) {
-        files = fixed;
+      const vres = await verifyAgainstRequest(planner, spec, files, job.userMessage);
+      if (vres.files) {
+        files = vres.files;
         emit('info', '已按你的要求校正实现');
       }
+      if (vres.summary && vres.summary.trim()) reply = vres.summary.trim();
     } catch (e: unknown) {
       emit('warn', 'verify error', errMsg(e));
+    }
+    if (!reply) {
+      const prev = new Map((job.existingFiles ?? []).map((f) => [f.path, f.content]));
+      const changed = files.filter((f) => prev.get(f.path) !== f.content).map((f) => f.path);
+      reply = changed.length ? `本次修改了 ${changed.join('、')}。` : '本次已按你的要求更新。';
     }
   }
 
@@ -287,6 +296,7 @@ export async function runPipeline(
             files,
             repairRounds: round,
             brief: { name: spec.brief.name, category: spec.brief.category, summary: spec.brief.summary, features: spec.brief.userStories },
+            reply,
           };
         }
       } else {
