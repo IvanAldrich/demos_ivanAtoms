@@ -119,18 +119,18 @@ async function main(): Promise<void> {
         emit('info', 'job done');
         const isIterate = job.type !== 'initial';
         const changeText = result.reply && result.reply.trim() ? result.reply.trim() : '';
-        const content =
-          isIterate && changeText
-            ? `✅ 已按你的要求完成：${changeText}`.replace(/\s+/g, ' ').trim()
-            : `✅ 已完成：v${version.n}《${result.brief?.name ?? project.name}》${result.brief?.category ? `(${result.brief.category})` : ''}。${result.brief?.summary ?? ''}${result.brief?.features && result.brief.features.length ? ` 功能：${result.brief.features.slice(0, 6).join('；')}。` : ''} 共 ${result.files?.length ?? 0} 个文件。可在右侧「预览」查看，或点「发布」获取公开链接。`
-                .replace(/\s+/g, ' ')
-                .trim();
+        const content = isIterate
+          ? `✅ 已按你的要求完成：${changeText || '本次修改已生效。'}`.replace(/\s+/g, ' ').trim()
+          : `✅ 已完成：v${version.n}《${result.brief?.name ?? project.name}》${result.brief?.category ? `(${result.brief.category})` : ''}。${result.brief?.summary ?? ''}${result.brief?.features && result.brief.features.length ? ` 功能：${result.brief.features.slice(0, 6).join('；')}。` : ''} 共 ${result.files?.length ?? 0} 个文件。可在右侧「预览」查看，或点「发布」获取公开链接。`
+              .replace(/\s+/g, ' ')
+              .trim();
+        const changeSummary = changeText || '本次修改已生效。';
         messages.add(db, project.id, 'assistant', content, {
           kind: 'done',
           version: version.n,
           name: result.brief?.name ?? project.name,
           category: result.brief?.category ?? null,
-          summary: isIterate ? changeText : result.brief?.summary ?? '',
+          summary: isIterate ? changeSummary : result.brief?.summary ?? '',
           features: isIterate ? [] : result.brief?.features ?? [],
           files: result.files?.length ?? 0,
         });

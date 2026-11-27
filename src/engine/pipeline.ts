@@ -226,12 +226,13 @@ export async function runPipeline(
     }
   }
 
-  if (!failure && job.mode === 'iterate' && job.userMessage) {
+  if (job.mode === 'iterate' && job.userMessage) {
     emit('info', '验收：核对是否满足你的最新要求');
     try {
       const vres = await verifyAgainstRequest(planner, spec, files, job.userMessage);
       if (vres.files) {
         files = vres.files;
+        failure = ''; // verify produced request-correct files; proceed to build
         emit('info', '已按你的要求校正实现');
       }
       if (vres.summary && vres.summary.trim()) reply = vres.summary.trim();

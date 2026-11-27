@@ -4,9 +4,11 @@ import type { SiteSpec } from '../schema';
 import { PROMPTS } from '../prompts';
 import type { FileEntry, Patch } from '../../lib/files';
 
-const FilesResp = z.object({
-  files: z.array(z.object({ path: z.string(), content: z.string() })),
-});
+const fileItem = z.object({ path: z.string(), content: z.string() });
+const FilesResp = z.preprocess(
+  (v) => (Array.isArray(v) ? { files: v } : v),
+  z.object({ files: z.array(fileItem) }),
+);
 const PatchesResp = z.object({
   patches: z.array(z.object({ path: z.string(), search: z.string(), replace: z.string() })),
 });
