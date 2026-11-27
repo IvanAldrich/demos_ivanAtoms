@@ -142,7 +142,7 @@ function CompletionCard({
   );
 }
 
-function StageProgress({ stage, activeStatus, queueHint }: { stage: Stage | null; activeStatus?: string; queueHint?: string }) {
+function StageProgress({ stage, activeStatus, queueHint, pending }: { stage: Stage | null; activeStatus?: string; queueHint?: string; pending?: number }) {
   const k = stage?.k ?? 0;
   return (
     <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'flex-start' }}>
@@ -152,6 +152,7 @@ function StageProgress({ stage, activeStatus, queueHint }: { stage: Stage | null
           <span style={{ fontSize: 11, color: '#7d9aff', fontWeight: 600 }}>Alex · 工程师</span>
           <span style={{ fontSize: 11, color: '#889' }}>
             {activeStatus === 'queued' ? '排队中…' : stage ? `第 ${stage.k}/${stage.n} 步` : queueHint || '处理中…'}
+            {pending && pending > 0 ? `（另有 ${pending} 个排队）` : ''}
           </span>
           <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#7d9aff', marginLeft: 4 }} />
         </div>
@@ -188,6 +189,7 @@ export default function ChatPage() {
   const [code, setCode] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<{ status: string; type: string } | null>(null);
+  const [pending, setPending] = useState(0);
   const esRef = useRef<EventSource | null>(null);
   const prevStatus = useRef<string>('');
 
@@ -198,6 +200,7 @@ export default function ChatPage() {
     setVersions(d.versions ?? []);
     setMessages(d.messages ?? []);
     setActiveJob(d.activeJob ?? null);
+    setPending(d.pending ?? 0);
   }, [id]);
 
   useEffect(() => {
@@ -333,7 +336,7 @@ export default function ChatPage() {
           {project?.name ?? '加载中…'}
         </span>
         <span style={{ fontSize: 12, color: building ? '#e0b44a' : project?.status === 'ready' ? '#5ad17a' : '#777' }}>
-          {building ? (activeJob?.status === 'queued' ? '排队中' : '构建中…') : project?.status ?? ''}
+          {building ? (activeJob?.status === 'queued' ? '排队中' : `正在处理${pending > 0 ? ` · ${pending} 个排队` : ''}`) : project?.status ?? ''}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           {project?.status === 'failed' && (
@@ -376,7 +379,7 @@ export default function ChatPage() {
                 <Bubble key={m.id} m={m} />
               ),
             )}
-            {building && <StageProgress stage={stage} activeStatus={activeJob?.status} queueHint={statusLine} />}
+            {building && <StageProgress stage={stage} activeStatus={activeJob?.status} queueHint={statusLine} pending={pending} />}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="继续对话修改…" style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #333', background: '#1a1a1c', color: '#eee' }} />

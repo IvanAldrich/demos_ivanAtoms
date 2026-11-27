@@ -81,8 +81,19 @@ export class LlmClient {
         ...(json && withFormat ? { response_format: { type: 'json_object' } } : {}),
       });
 
-    const send = (withFormat: boolean) =>
-      fetch(url, { method: 'POST', headers, body: buildBody(withFormat) });
+    const send = async (withFormat: boolean): Promise<Response> => {
+      const ctrl = new AbortController();
+      const timeoutMs = Number(process.env.LLM_TIMEOUT_MS) || 120_000;
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        return await fetch(url, { method: 'POST', headers, body: buildBody(withFormat), signal: ctrl.signal });
+      } catch (e: unknown) {
+        if ((e as { name?: string })?.name === 'AbortError') throw new Error('llm_timeout');
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
 
     let res = await send(true);
     if (!res.ok && res.status === 400) {
