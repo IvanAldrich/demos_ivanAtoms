@@ -252,8 +252,9 @@ export async function runPipeline(
     files = normalizeRelativePaths(files);
     if (!failure) files = await fillMissingAssets(deps.llm, files, spec, emit);
 
-    if (!failure && job.mode === 'iterate' && job.userMessage) {
-      const gate = requestGate(files, job.existingFiles ?? [], job.userMessage);
+    const gateMsg = job.mode === 'initial' ? job.idea : job.userMessage;
+    if (!failure && gateMsg) {
+      const gate = requestGate(files, job.existingFiles ?? [], gateMsg);
       if (gate) failure = `gate: ${gate}`;
     }
 
